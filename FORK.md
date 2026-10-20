@@ -50,3 +50,8 @@ A deliberate behaviour change goes in `tests/golden/fork-changes.json` (`{case_i
    the music, the now-playing page is added as a display only (no hidden Video player, no slider / transport controls,
    no MetadataRefresh timer) and the session ends - graphics without the open session that kept Alexa listening.
    Off by default (golden responses unchanged); `tests/test_apl_display_only.py`.
+6. **The display-only page follows the song** (2026-10-20). It re-loads its cover and title every 10 s from
+   `/now/<token>/<player>/cover` (redirect to the current cover) and `/now/<token>/<player>/text.json` (title and
+   "artist - album" as an AVG vector graphic - APL can't fetch text). A page-local timer only, no SendEvent, so the
+   session stays closed. `<token>` = HMAC of the player with the API password; wrong token -> 404. `app/now_playing.py`,
+   `tests/test_now_playing.py`.
