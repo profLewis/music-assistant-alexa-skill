@@ -37,5 +37,5 @@ def test_display_only_page_reloads_from_now_without_sendevent(client, monkeypatc
     event = build_event("IntentRequest", "PlayAudio", {}, True, SHOW, "en-GB")
     r = handlers.lambda_handler(event, None)["response"]
     doc = str(next(d for d in r["directives"] if d["type"] == "Alexa.Presentation.APL.RenderDocument")["document"])
-    assert "/now/" in doc and "nowTick" in doc and "VectorGraphic" in doc
+    assert "/now/" in doc and "nowTick" in doc and "VectorGraphic" in doc and "handleTick" in doc
     assert "SendEvent" not in doc and r["shouldEndSession"] is True
