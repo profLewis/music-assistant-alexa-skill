@@ -18,3 +18,15 @@ A deliberate behaviour change goes in `tests/golden/fork-changes.json` (`{case_i
 
     python scripts/record_golden.py --check            # (upstream code only) re-record + prove determinism
     python -m pytest tests/test_golden_responses.py    # fork vs upstream
+
+## Fork changes
+
+1. **One stream per speaker** (2026-10-20). Upstream kept a single "latest stream" slot. When Music Assistant played on
+   several Echoes at once, each push overwrote the previous one, so every Echo was handed the same stream and only one
+   played. Pushes are now also stored per MA player, taken from the flow URL (`/flow/<session>/<player>/…`) or an
+   explicit `playerId`. A request from an Echo that is mapped to a player on `/devices` gets that player's stream.
+   Unmapped Echoes, or players with no push of their own, get the latest push exactly as upstream does.
+   - The golden responses are unchanged (all 264 cases are still byte-identical to upstream).
+   - The new behaviour is covered in `tests/test_multi_player.py`.
+   - Note: this makes several Echoes *play*, but they are not sample-synced. Only Amazon multi-room groups give true
+     sync, and a custom skill can't be started on one.
