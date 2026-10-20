@@ -179,8 +179,14 @@ def _validated_stream_url(url, response_builder, validate=True):
     return url, None
 
 
+def apl_display_only():
+    """Fork: APL_DISPLAY_ONLY=true - with APL on, Alexa's AudioPlayer plays the music and the page is display-only, so
+    the session closes (no listening, no Alexa+ "say 'Alexa, exit'")."""
+    return get_setting("APL_DISPLAY_ONLY", "false").lower() in ("true", "1", "yes")
+
+
 def play(url, offset, text, response_builder, supports_apl=False, validate=True):
-    if supports_apl and apl_enabled():
+    if supports_apl and apl_enabled() and not apl_display_only():
         add_apl(response_builder)
     else:
         url, error = _validated_stream_url(url, response_builder, validate=validate)
@@ -201,6 +207,13 @@ def play(url, offset, text, response_builder, supports_apl=False, validate=True)
                 ),
             )
         )
+        if supports_apl and apl_enabled() and apl_display_only():
+            try:
+                from .apl import add_apl_display
+
+                add_apl_display(response_builder)
+            except Exception:
+                logging.exception("Could not add the display-only page")
         response_builder.set_should_end_session(True)
 
     if text:

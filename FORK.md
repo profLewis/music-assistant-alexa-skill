@@ -46,3 +46,7 @@ A deliberate behaviour change goes in `tests/golden/fork-changes.json` (`{case_i
    12 golden APL cases documented (verified to differ only by those fields).
    - `tests/test_lambda_handlers.py`: the two APL user-event tests now set `ENABLE_APL=true` (they test APL-on paths);
      a new test covers APL off ending the session (fork change 2).
+5. **Display-only APL page** (2026-10-20). Setting `APL_DISPLAY_ONLY=true` (with APL on): Alexa's own AudioPlayer plays
+   the music, the now-playing page is added as a display only (no hidden Video player, no slider / transport controls,
+   no MetadataRefresh timer) and the session ends - graphics without the open session that kept Alexa listening.
+   Off by default (golden responses unchanged); `tests/test_apl_display_only.py`.
