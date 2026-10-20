@@ -11,6 +11,7 @@ from ask_sdk_model.interfaces.alexa.presentation.apl import (
 )
 from ask_sdk_model.interfaces.audioplayer import (
     AudioItem,
+    AudioItemMetadata,
     ClearBehavior,
     ClearQueueDirective,
     PlayBehavior,
@@ -19,8 +20,21 @@ from ask_sdk_model.interfaces.audioplayer import (
     Stream,
 )
 
+from ask_sdk_model.interfaces.display import Image, ImageInstance
+
 from . import data
 from .apl import add_apl
+
+
+def _audio_metadata():
+    """Song details for Alexa's own player screen (fork): cover art, title, artist - album. Screen Echoes then show a
+    proper now-playing page with the session closed (no APL display holding it open). Only https images are allowed."""
+    info = data.get_info() or {}
+    title, sub, img = info.get("primaryText") or "", info.get("secondaryText") or "", info.get("coverImageSource") or ""
+    if not (title or img):
+        return None
+    pic = Image(sources=[ImageInstance(url=img)]) if img.startswith("https://") else None
+    return AudioItemMetadata(title=title or None, subtitle=sub or None, art=pic, background_image=pic)
 
 
 def apl_enabled():
@@ -182,7 +196,8 @@ def play(url, offset, text, response_builder, supports_apl=False, validate=True)
                         url=url,
                         offset_in_milliseconds=offset,
                         expected_previous_token=None,
-                    )
+                    ),
+                    metadata=_audio_metadata(),
                 ),
             )
         )

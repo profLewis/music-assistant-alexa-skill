@@ -304,10 +304,17 @@ def test_apl_user_event_refresh_adds_update_and_schedules_next(monkeypatch):
 
 
 def test_apl_user_event_without_metadata_keeps_session_open(monkeypatch):
-    # Empty store: no audioSources -> warning branch, still keeps session open.
+    # Empty store: no audioSources -> warning branch, still keeps session open (APL on).
+    monkeypatch.setenv("ENABLE_APL", "true")
     response = invoke(_user_event())
     assert response["shouldEndSession"] is False
-    assert not response.get("directives")  # APL disabled -> no refresh scheduled
+
+
+def test_apl_user_event_with_apl_off_ends_session(monkeypatch):
+    # fork: APL off -> a leftover display's refresh ends the session (upstream kept it open), no directives.
+    response = invoke(_user_event())
+    assert response["shouldEndSession"] is True
+    assert not response.get("directives")
 
 
 def test_apl_user_event_metadata_fetch_failure_is_swallowed(monkeypatch):
@@ -315,6 +322,7 @@ def test_apl_user_event_metadata_fetch_failure_is_swallowed(monkeypatch):
         raise RuntimeError("store down")
 
     monkeypatch.setattr(data, "get_latest", boom)
+    monkeypatch.setenv("ENABLE_APL", "true")
     response = invoke(_user_event())
     assert response["shouldEndSession"] is False
 
