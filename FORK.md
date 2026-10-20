@@ -36,3 +36,13 @@ A deliberate behaviour change goes in `tests/golden/fork-changes.json` (`{case_i
    and Alexa+ said "say 'Alexa, exit' to go back to Alexa+". The refresh now ends the session when APL is off; with APL
    on nothing changes. Golden responses unchanged (the golden refresh case uses a different argument); covered in
    `tests/test_apl_off_refresh.py` (fails on upstream, passes here).
+
+3. **Song details for Alexa's own player** (2026-10-20). `AudioPlayer.Play` now carries `AudioItemMetadata` - title,
+   "artist - album" and the cover (https only) - so with APL off a screen Echo still shows a proper now-playing page
+   (Alexa's own), with the session closed: no listening, no Alexa+ "say 'Alexa, exit'" line. 20 golden play cases
+   documented in `tests/golden/fork-changes.json` (verified to differ only by the metadata).
+4. **Readable APL page** (2026-10-20). With APL on, the title/artist were white on the full, bright cover. The
+   background now has Alexa's `colorOverlay` scrim and `backgroundBlur`, and the two text lines are explicitly white.
+   12 golden APL cases documented (verified to differ only by those fields).
+   - `tests/test_lambda_handlers.py`: the two APL user-event tests now set `ENABLE_APL=true` (they test APL-on paths);
+     a new test covers APL off ending the session (fork change 2).

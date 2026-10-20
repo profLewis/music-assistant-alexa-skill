@@ -109,7 +109,10 @@
                 },
                 {
                   "type": "SendEvent",
-                  "arguments": ["MetadataRefresh", "${refreshTick}"]
+                  "arguments": [
+                    "MetadataRefresh",
+                    "${refreshTick}"
+                  ]
                 }
               ]
             }
@@ -119,7 +122,9 @@
               "type": "AlexaBackground",
               "id": "AlexaBackground",
               "description": "Main backgroud",
-              "backgroundImageSource": "${backgroundImageSource}"
+              "backgroundImageSource": "${backgroundImageSource}",
+              "colorOverlay": true,
+              "backgroundBlur": true
             },
             {
               "type": "AlexaHeader",
@@ -189,7 +194,8 @@
                           "text": "${primaryText}",
                           "style": "textStyleDisplay4",
                           "textAlign": "${@viewportProfile != @hubRoundSmall ? 'auto' : 'center'}",
-                          "paddingBottom": "@spacingXSmall"
+                          "paddingBottom": "@spacingXSmall",
+                          "color": "#FFFFFF"
                         },
                         {
                           "type": "Text",
@@ -197,7 +203,8 @@
                           "accessibilityLabel": "${secondaryText}",
                           "text": "${secondaryText}",
                           "style": "textStyleBody",
-                          "textAlign": "${@viewportProfile != @hubRoundSmall ? 'auto' : 'center'}"
+                          "textAlign": "${@viewportProfile != @hubRoundSmall ? 'auto' : 'center'}",
+                          "color": "#FFFFFF"
                         }
                       ]
                     }
@@ -354,7 +361,9 @@
     }
   },
   "mainTemplate": {
-    "parameters": ["payload"],
+    "parameters": [
+      "payload"
+    ],
     "items": [
       {
         "type": "AudioPlayer",
