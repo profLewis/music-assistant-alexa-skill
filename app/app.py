@@ -186,6 +186,8 @@ def _check_app_basic_auth():
     # Allow the Alexa skill POST endpoint to be called without app-level auth
     if request.path == "/health" or (request.path == "/" and request.method == "POST"):
         return None
+    if request.path.startswith("/now/"):
+        return None  # fork: the Echo screen fetches these; each is checked against its own token
     # Read credentials from secrets (APP_USERNAME/APP_PASSWORD)
     app_user = get_env_secret("APP_USERNAME")
     app_pass = get_env_secret("APP_PASSWORD")
@@ -306,6 +308,11 @@ app.config["INTENT_LOGS_MAXLEN"] = 500
 
 for blueprint in (status_bp, invocations_bp, simulator_bp, devices_bp):
     app.register_blueprint(blueprint)
+
+# fork: the display-only page's self-refreshing cover / title (token-protected, see now_playing.py)
+from now_playing import bp as now_playing_bp  # noqa: E402
+
+app.register_blueprint(now_playing_bp)
 
 
 def shutdown_setup_children(_signum):

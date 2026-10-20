@@ -102,6 +102,38 @@ def add_apl_display(response_builder):
     doc = copy.deepcopy(_load_apl_template())
     root = doc["layouts"]["AudioPlayer"]["item"][0]
     root.pop("onMount", None)   # the MetadataRefresh polling loop
+    # follow the song: re-load the cover and the title (as a vector graphic) every 10 s from this server's /now/
+    # addresses - a page-local timer, no SendEvent, so the session stays closed
+    try:
+        from music_assistant_api.ma_routes import player_from_stream_url
+        from now_playing import urls
+
+        cover_url, text_url = urls(player_from_stream_url(metadata.get("audioSources", "")) or "_")
+    except Exception:
+        cover_url = text_url = None
+    if cover_url:
+        root.setdefault("bind", []).append({"name": "nowTick", "type": "number", "value": 0})
+        root["onMount"] = [{"type": "Sequential", "repeatCount": -1, "commands": [
+            {"type": "Idle", "delay": 10000}, {"type": "SetValue", "property": "nowTick", "value": "${nowTick + 1}"}]}]
+        live = "${'" + cover_url + "?t=' + nowTick}"
+
+        def follow(node):
+            if isinstance(node, dict):
+                if node.get("type") == "AlexaBackground":
+                    node["backgroundImageSource"] = live
+                if node.get("type") == "AlexaImage":
+                    node["imageSource"] = live
+                if node.get("type") == "Container" and any(
+                        isinstance(x, dict) and x.get("id") == "Audio_PrimaryText" for x in node.get("items", [])):
+                    node["items"] = [{"type": "VectorGraphic", "id": "Audio_LiveText", "width": "100%", "height": "16vh",
+                                      "scale": "best-fit", "align": "left", "source": "${'" + text_url + "?t=' + nowTick}"}]
+                for v in node.values():
+                    follow(v)
+            elif isinstance(node, list):
+                for v in node:
+                    follow(v)
+
+        follow(root)
     try:
         body = root["items"][2]["items"]
         root["items"][2]["items"] = [c for c in body if c.get("id") != "Audio_AudioInfo"]   # video + slider + controls
