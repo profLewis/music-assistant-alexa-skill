@@ -30,3 +30,9 @@ A deliberate behaviour change goes in `tests/golden/fork-changes.json` (`{case_i
    - The new behaviour is covered in `tests/test_multi_player.py`.
    - Note: this makes several Echoes *play*, but they are not sample-synced. Only Amazon multi-room groups give true
      sync, and a custom skill can't be started on one.
+
+2. **APL off really ends the session** (2026-10-20). With `enable_apl=false`, a display left on a screen Echo from
+   before kept polling (APL UserEvent "MetadataRefresh") and every refresh kept the session open, so Alexa kept listening
+   and Alexa+ said "say 'Alexa, exit' to go back to Alexa+". The refresh now ends the session when APL is off; with APL
+   on nothing changes. Golden responses unchanged (the golden refresh case uses a different argument); covered in
+   `tests/test_apl_off_refresh.py` (fails on upstream, passes here).
