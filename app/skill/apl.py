@@ -113,8 +113,10 @@ def add_apl_display(response_builder):
         cover_url = text_url = None
     if cover_url:
         root.setdefault("bind", []).append({"name": "nowTick", "type": "number", "value": 0})
-        root["onMount"] = [{"type": "Sequential", "repeatCount": -1, "commands": [
-            {"type": "Idle", "delay": 10000}, {"type": "SetValue", "property": "nowTick", "value": "${nowTick + 1}"}]}]
+        # handleTick (a component property, APL 1.4+): keeps running after the session closes - a command sequence
+        # (onMount + Idle) didn't, on an Alexa+ Echo Show
+        root["handleTick"] = [{"minimumDelay": 10000, "commands": [
+            {"type": "SetValue", "property": "nowTick", "value": "${nowTick + 1}"}]}]
         live = "${'" + cover_url + "?t=' + nowTick}"
 
         def follow(node):
