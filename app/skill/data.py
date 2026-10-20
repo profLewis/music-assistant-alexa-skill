@@ -57,8 +57,15 @@ def _metadata(payload):
     }
 
 
-def begin_request():
-    _request_info.set(_metadata(shared_store.get_ma()))
+def begin_request(device_id=None):
+    """Snapshot what this request plays: the stream pushed for the Echo's own MA player when the device is mapped
+    (several Echoes can be playing different streams at once), else the latest push."""
+    player_id = None
+    if device_id:
+        from skill import device_mapping
+
+        player_id = device_mapping.get_player_for_device(device_id)
+    _request_info.set(_metadata(shared_store.get_ma(player_id)))
 
 
 def get_info():

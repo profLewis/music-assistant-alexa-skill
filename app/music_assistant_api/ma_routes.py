@@ -1,11 +1,23 @@
 """Music Assistant stream push and snapshot endpoints."""
 
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 import shared_store
 from app_settings import get_setting
 from flask import jsonify, request
 from public_urls import rewrite_url
+
+
+def player_from_stream_url(url):
+    """The MA player a flow stream is for: /flow/<session>/<queue_id>/<item_id>/<queue_id>.<ext> -> queue_id."""
+    try:
+        parts = urlsplit(url).path.split("/")
+        i = parts.index("flow")
+        if len(parts) > i + 4 and parts[i + 2]:
+            return unquote(parts[i + 2])
+    except (ValueError, AttributeError):
+        pass
+    return None
 
 
 def register_routes(bp):
@@ -42,7 +54,8 @@ def register_routes(bp):
                 "artist": payload.get("artist"),
                 "album": payload.get("album"),
                 "imageUrl": image_url,
-            }
+            },
+            player_id=payload.get("playerId") or player_from_stream_url(raw_url),
         )
         return jsonify({"status": "ok", "version": version})
 

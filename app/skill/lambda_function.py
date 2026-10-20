@@ -897,10 +897,10 @@ class APLSupportRequestInterceptor(AbstractRequestInterceptor):
     """Capture metadata and device capabilities independently for each request."""
 
     def process(self, handler_input):
-        data.begin_request()
         context = getattr(handler_input.request_envelope, "context", None)
         system = getattr(context, "system", None)
         device = getattr(system, "device", None)
+        data.begin_request(getattr(device, "device_id", None))
         interfaces = getattr(device, "supported_interfaces", None)
         handler_input.attributes_manager.request_attributes["supports_apl"] = (
             getattr(interfaces, "alexa_presentation_apl", None) is not None

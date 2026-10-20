@@ -19,6 +19,7 @@ def isolated_state(monkeypatch, tmp_path):
     from skill import data
 
     monkeypatch.setattr(shared_store, "_ma", None)
+    monkeypatch.setattr(shared_store, "_ma_by_player", {})
     monkeypatch.setattr(shared_store, "_alexa", None)
     monkeypatch.setattr(shared_store, "_version", 0)
     monkeypatch.setenv("APP_USERNAME", "test-user")
