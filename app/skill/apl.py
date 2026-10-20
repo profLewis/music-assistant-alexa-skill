@@ -86,3 +86,40 @@ def add_apl(response_builder, start_paused=False):
 def _get_metadata():
     """Use the same request snapshot as AudioPlayer playback."""
     return data.get_info()
+
+
+def add_apl_display(response_builder):
+    # type: (ResponseFactory) -> None
+    """Fork: the now-playing page as a DISPLAY ONLY - background, cover, title, artist - shown alongside Alexa's own
+    AudioPlayer, which plays the music. No hidden Video player (it would play the stream a second time), no slider /
+    transport controls (they drive that player) and no refresh timer (a SendEvent would reopen the skill session, and
+    an open session is what keeps Alexa listening). The response can then end the session."""
+    import copy
+
+    metadata = _get_metadata()
+    if not metadata:
+        return
+    doc = copy.deepcopy(_load_apl_template())
+    root = doc["layouts"]["AudioPlayer"]["item"][0]
+    root.pop("onMount", None)   # the MetadataRefresh polling loop
+    try:
+        body = root["items"][2]["items"]
+        root["items"][2]["items"] = [c for c in body if c.get("id") != "Audio_AudioInfo"]   # video + slider + controls
+    except (KeyError, IndexError):
+        logging.debug("Could not trim the player out of the APL template")
+    doc["mainTemplate"]["items"][0].update(
+        {
+            "audioSources": "",
+            "backgroundImageSource": metadata.get("backgroundImageSource", ""),
+            "coverImageSource": metadata.get("coverImageSource", ""),
+            "headerAttributionImage": metadata.get("headerAttributionImage", ""),
+            "headerTitle": metadata.get("headerTitle", ""),
+            "headerSubtitle": metadata.get("headerSubtitle", ""),
+            "primaryText": metadata.get("primaryText", ""),
+            "secondaryText": metadata.get("secondaryText", ""),
+        }
+    )
+    response_builder.add_directive(
+        RenderDocumentDirective(token="displayToken", document=doc, datasources={})
+    )
+
