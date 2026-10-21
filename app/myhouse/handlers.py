@@ -33,16 +33,21 @@ def _html(handler_input):
 
 
 def _open_dashboard(handler_input, page="home"):
-    """THE WHOLE CONTROL PANEL on the Show: open the front-door page on Home Assistant (www/catballou.html), which
-    signs in with the Echo Show user's key and opens /control-panel/<page> - the dashboard's landscape layouts at the
-    Show's size. None when the Show can't (no web app support / no key set): the drawn screens are used instead."""
-    token = widgets._opts().get("catballou_ha_token")
-    base = (widgets._opts().get("catballou_ha_url") or "https://ha.proflewis.stream").rstrip("/")
-    if not token or not _html(handler_input):
+    """THE WHOLE CONTROL PANEL on the Show: open /control-panel/<page> signed in as the Echo Show user with a one-time
+    code (signin.py - the Show's browser keeps nothing, so no stored sign-in). The front-door page (www/catballou.html)
+    turns the code into the frontend's own sign-in. None when the Show can't (no web app support / no password set):
+    the drawn screens are used instead."""
+    from . import signin
+    if not signin.configured() or not _html(handler_input):
         return None
+    try:
+        data = {"code": signin.code(), "state": signin.state(), "page": page}
+    except Exception:
+        log.exception("Cat Ballou: signing the Show in failed")
+        return None
+    base = signin._cfg()["url"]
     rb = handler_input.response_builder
-    rb.add_directive(StartDirective(data={"token": token, "page": page},
-                                    request=StartRequest(uri=f"{base}/local/catballou.html", method=StartRequestMethod.GET),
+    rb.add_directive(StartDirective(data=data, request=StartRequest(uri=f"{base}/local/catballou.html", method=StartRequestMethod.GET),
                                     configuration=Configuration(timeout_in_seconds=1800)))
     return rb.response
 
