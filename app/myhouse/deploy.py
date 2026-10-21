@@ -174,15 +174,23 @@ def deploy(app):
     threading.Thread(target=run, daemon=True).start()
 
 
+def _v2(m, method, path, **kw):
+    """A call to Amazon's v2 API (the simulator) - the deployment manager only allows v1 paths."""
+    r = m._send_once(method, path, 0, kw)
+    return r.status_code, (r.json() if r.content else {})
+
+
 def simulate(text, locale="en-GB"):
     """Ask Amazon to simulate saying `text` to the development skill and return what happened (for diagnosing)."""
     m, sid = manager(), skill_id()
-    path = f"/v1/skills/{quote(sid, safe='')}/stages/development/simulations"
-    r = m.api("POST", path, json={"session": {"mode": "FORCE_NEW_SESSION"}, "input": {"content": text}, "device": {"locale": locale}}).json()
+    path = f"/v2/skills/{quote(sid, safe='')}/stages/development/simulations"
+    code, r = _v2(m, "POST", path, json={"session": {"mode": "FORCE_NEW_SESSION"}, "input": {"content": text}, "device": {"locale": locale}})
+    if code >= 300:
+        return {"http": code, "body": r}
     sim = r.get("id")
     for _ in range(30):
         time.sleep(1.5)
-        b = m.api("GET", f"{path}/{sim}").json()
+        code, b = _v2(m, "GET", f"{path}/{sim}")
         if b.get("status") != "IN_PROGRESS":
             return b
     return {"status": "TIMEOUT"}
