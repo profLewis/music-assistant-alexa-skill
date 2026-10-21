@@ -60,7 +60,7 @@ def home():
                  "", "#7ee08a" if health == "ok" else "#ff8a65"),
     ]
     rows = [{"type": "Container", "direction": "row", "width": "100%", "items": tiles[i:i + 3], "spacing": "2%"} for i in (0, 3)]
-    return apl.document("home", "MyHouse", rows, _top())
+    return apl.document("home", "Cat Ballou", rows, _top())
 
 
 def lights():

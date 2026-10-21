@@ -98,6 +98,6 @@ def test_other_skills_are_refused(house, monkeypatch):
 
 def test_voice_model_rooms_and_invocation():
     m = model.interaction_model()["interactionModel"]["languageModel"]
-    assert m["invocationName"] == "my house"
+    assert m["invocationName"] == "cat ballou"
     rooms = next(t for t in m["types"] if t["name"] == "ROOM")["values"]
     assert {"name": {"value": "living room", "synonyms": ["lounge", "sitting room"]}} in rooms

@@ -1,4 +1,4 @@
-"""MyHouse voice model ("Alexa, open my house")."""
+"""MyHouse voice model ("Alexa, open Cat Ballou")."""
 
 from .house import ROOMS
 
@@ -42,4 +42,4 @@ def interaction_model():
             ("pause", ["stop", "hold"]), ("play", ["resume", "carry on", "continue"]), ("next", ["skip", "next song", "skip this"]),
             ("previous", ["back", "last song", "go back"]), ("louder", ["turn up", "volume up"]), ("quieter", ["turn down", "volume down"])]]},
     ]
-    return {"interactionModel": {"languageModel": {"invocationName": "my house", "intents": intents, "types": types}}}
+    return {"interactionModel": {"languageModel": {"invocationName": "cat ballou", "intents": intents, "types": types}}}
