@@ -34,6 +34,24 @@ def skill_id():
     return _load().get("skill_id")
 
 
+# the screens it runs on (Amazon sends the skill only to devices whose screen is listed) - the music skill's list
+VIEWPORTS = [
+    {"mode": "HUB", "shape": "ROUND", "minWidth": 100, "maxWidth": 599, "minHeight": 100, "maxHeight": 599},
+    {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 600, "maxWidth": 959, "minHeight": 100, "maxHeight": 599},
+    {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 1279, "minHeight": 600, "maxHeight": 959},
+    {"mode": "HUB", "shape": "RECTANGLE", "minWidth": 1280, "maxWidth": 1920, "minHeight": 600, "maxHeight": 1279},
+    {"mode": "TV", "shape": "RECTANGLE", "minWidth": 960, "maxWidth": 960, "minHeight": 540, "maxHeight": 540},
+]
+
+
+def music_interfaces(m):
+    sid = m.state.get("skill_id")
+    if not sid:
+        return []
+    body = m.api("GET", f"/v1/skills/{quote(sid, safe='')}/stages/development/manifest").json()
+    return ((body.get("manifest") or {}).get("apis") or {}).get("custom", {}).get("interfaces") or []
+
+
 def music_endpoint(m):
     """The music skill's endpoint as Amazon has it (the one that's known to work): its certificate type is copied."""
     sid = m.state.get("skill_id")
@@ -63,7 +81,7 @@ def amazon_manifests():
     return out
 
 
-def manifest(endpoint, cert=None):
+def manifest(endpoint, cert=None, viewports=None):
     loc = {
         "name": "Cat Ballou",
         "summary": "The house on your Echo Show: lights, heating and music.",
@@ -80,7 +98,7 @@ def manifest(endpoint, cert=None):
         "publishingInformation": {"locales": {l: loc for l in LOCALES}, "isAvailableWorldwide": False,
                                   "distributionCountries": ["GB"], "category": "SMART_HOME"},
         "apis": {"custom": {"endpoint": {"uri": endpoint, "sslCertificateType": cert or get_setting("SKILL_CERTIFICATE_TYPE", "Wildcard")},
-                            "interfaces": [{"type": "ALEXA_PRESENTATION_APL"}]}},
+                            "interfaces": [{"type": "ALEXA_PRESENTATION_APL", "supportedViewports": viewports or VIEWPORTS}]}},
         "privacyAndCompliance": {"allowsPurchases": False, "usesPersonalInfo": False, "isChildDirected": False,
                                  "isExportCompliant": True, "containsAds": False},
         "permissions": [],
@@ -128,7 +146,8 @@ def deploy(app):
                 endpoint = https_url(get_setting("SKILL_HOSTNAME", "").strip(), "Skill endpoint").rstrip("/") + "/myhouse"
                 d = _load(); sid = d.get("skill_id")
                 ep = music_endpoint(m)   # the music skill's endpoint works: same host, same certificate type
-                body = manifest(endpoint, ep.get("sslCertificateType"))
+                vp = next((i.get("supportedViewports") for i in music_interfaces(m) if i.get("type") == "ALEXA_PRESENTATION_APL" and i.get("supportedViewports")), None)
+                body = manifest(endpoint, ep.get("sslCertificateType"), vp)
                 if not sid:
                     _say("creating", "Creating the MyHouse skill at Amazon…")
                     sid = m.api("POST", "/v1/skills", json={"vendorId": vendor, **body}).json()["skillId"]
