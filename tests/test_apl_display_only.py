@@ -33,3 +33,26 @@ def test_without_display_only_the_full_apl_player_is_unchanged(client, monkeypat
     r = play(client, monkeypatch, "false")
     types = [d["type"] for d in r["directives"]]
     assert "AudioPlayer.Play" not in types and "Alexa.Presentation.APL.RenderDocument" in types
+
+
+def _pause(client, monkeypatch, display_only, new_session):
+    monkeypatch.setenv("ENABLE_APL", "true")
+    monkeypatch.setenv("APL_DISPLAY_ONLY", display_only)
+    event = build_event("IntentRequest", "AMAZON.PauseIntent", {}, new_session, SHOW, "en-GB")
+    return handlers.lambda_handler(event, None)["response"]
+
+
+def test_display_only_pause_stops_and_ends_the_session(client, monkeypatch):
+    # a pause (MA's own pause arrives as one) left the session open on a Show: the Echo then sat listening
+    for new in (True, False):
+        r = _pause(client, monkeypatch, "true", new)
+        assert [d["type"] for d in r.get("directives", [])] == ["AudioPlayer.Stop"]
+        assert r["shouldEndSession"] is True
+
+
+def test_display_only_display_event_ends_the_session(client, monkeypatch):
+    monkeypatch.setenv("ENABLE_APL", "true")
+    monkeypatch.setenv("APL_DISPLAY_ONLY", "true")
+    event = build_event("Alexa.Presentation.APL.UserEvent", None, {"token": "playbackToken", "arguments": ["MetadataRefresh"]}, False, SHOW, "en-GB")
+    r = handlers.lambda_handler(event, None)["response"]
+    assert r["shouldEndSession"] is True

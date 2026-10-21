@@ -741,8 +741,10 @@ class APLUserEventHandler(AbstractRequestHandler):
         # APL switched off (add-on option enable_apl=false): a display left on screen from before must not keep the
         # session open - no refresh, end the session, so the screen goes back to Alexa and stops polling (an open
         # session here kept Alexa listening and, on Alexa+, made it say "say 'Alexa, exit'...").
-        if not util.apl_enabled():
-            logger.info("APL disabled: ending the session for a leftover display refresh")
+        if not util.apl_enabled() or util.apl_display_only():
+            # (fork) display-only page: nothing to refresh through the session either - it updates itself - so a
+            # UserEvent from it must not reopen the session (that left the Echo listening)
+            logger.info("APL disabled or display-only: ending the session for a display event")
             return handler_input.response_builder.set_should_end_session(True).response
 
         # Fetch latest metadata from Music Assistant

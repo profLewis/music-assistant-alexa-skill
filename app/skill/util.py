@@ -239,7 +239,9 @@ def stop(text, response_builder):
 
 
 def pause(text, response_builder, supports_apl=False, session_new=False):
-    if supports_apl and apl_enabled():
+    # Fork: in display-only mode Alexa's AudioPlayer is playing (not an APL video), so a pause is a plain Stop and the
+    # session ENDS - the APL path below kept it open, which left the Echo listening for a reply after every pause.
+    if supports_apl and apl_enabled() and not apl_display_only():
         try:
             if session_new:
                 try:
