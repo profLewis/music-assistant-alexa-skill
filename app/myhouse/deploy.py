@@ -55,7 +55,7 @@ def music_interfaces(m):
 def music_endpoint(m):
     """The music skill's endpoint as Amazon has it (the one that's known to work) - INCLUDING its per-region endpoints:
     the UK Echoes use the EU one, which is set to Wildcard (Cloudflare's certificate). Copying only the default
-    ("Trusted") made Amazon refuse to call Apple Banana at all ("unable to reach the requested skill")."""
+    ("Trusted") made Amazon refuse to call Peach Banana at all ("unable to reach the requested skill")."""
     sid = m.state.get("skill_id")
     if not sid:
         return {}
@@ -92,12 +92,12 @@ def amazon_manifests():
 
 def manifest(endpoint, cert=None, viewports=None, regions=None):
     loc = {
-        "name": "Apple Banana",
+        "name": "Peach Banana",
         "summary": "The house on your Echo Show: lights, heating and music.",
-        "description": "Apple Banana shows the house on an Echo Show - rooms, lights, heating and music - with touch "
-                       "controls, and answers by voice. Say \"Alexa, open Apple Banana\".",
-        "examplePhrases": ["Alexa, open Apple Banana", "Alexa, ask Apple Banana to show the heating",
-                           "Alexa, ask Apple Banana to turn on the kitchen lights"],
+        "description": "Peach Banana shows the house on an Echo Show - rooms, lights, heating and music - with touch "
+                       "controls, and answers by voice. Say \"Alexa, open Peach Banana\".",
+        "examplePhrases": ["Alexa, open Peach Banana", "Alexa, ask Peach Banana to show the heating",
+                           "Alexa, ask Peach Banana to turn on the kitchen lights"],
         "keywords": ["home", "lights", "heating"],
         "smallIconUri": "https://raw.githubusercontent.com/profLewis/music-assistant-alexa-skill/proflewis/assets/icons/myhouse_108.png",
         "largeIconUri": "https://raw.githubusercontent.com/profLewis/music-assistant-alexa-skill/proflewis/assets/icons/myhouse_512.png",
@@ -176,7 +176,7 @@ def deploy(app):
                     _wait(m, path, "interactionModel", loc)
                 _say("enabling", "Enabling MyHouse for testing on your account…")
                 m.api("PUT", f"{path}/stages/development/enablement")
-                _say("done", "Apple Banana is ready: say \"Alexa, open Apple Banana\".")
+                _say("done", "Peach Banana is ready: say \"Alexa, open Peach Banana\".")
         except Exception as e:  # noqa: BLE001 - reported on the status endpoint
             _say("failed", str(e)[:500])
         finally:
