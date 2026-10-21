@@ -3,7 +3,8 @@
 import time
 
 from . import apl, ha
-from .house import BOILER, BOOST_HOURS, BOOSTS, GROUP, LEAD, ROOMS, TARGET
+from .house import (BOILER, BOOST_HOURS, BOOSTS, CENTRAL, DAY_T, FORCE_OFF, GROUP, LEAD, NIGHT_T, OFF_TIME, ON_TIME, OVERRIDE, ROOMS,
+                    TARGET, WINTER, WINTER_END, WINTER_START)
 
 
 def _num(x):
@@ -89,7 +90,7 @@ def heating():
     bar = {"type": "Container", "direction": "row", "alignItems": "center", "paddingBottom": "2vh", "items": [
         apl._txt(f"House {t1(ha.state('sensor.house_temperature'))}   target {t1(tgt)}", 28, apl.TEXT, "bold", grow=1),
         apl.pill("− 0.5°", "target", str(tgt - 0.5)), apl.pill("+ 0.5°", "target", str(tgt + 0.5)),
-        apl.pill("End boosts", "end_boost", "all", on=bool(bst))]}
+        apl.pill("End boosts", "end_boost", "all", on=bool(bst)), apl.navpill("Settings", "hsettings")]}
     hint = apl._txt(f"Tap a room to boost it for {ha.state(BOOST_HOURS, '2')} h (again to end)  ·  heating: {ha.state(BOILER, '—')}", 20, apl.DIM, paddingTop="1vh")
     return apl.document("heating", "Heating", [bar, apl.grid(btns, 4), hint], _top())
 
@@ -118,7 +119,80 @@ def music():
     return apl.document("music", "Music", [{"type": "Container", "direction": "row", "alignItems": "center", "items": [left, right]}], _top())
 
 
-PAGES = {"home": home, "lights": lights, "heating": heating, "music": music}
+def mode():
+    """Normal / Boost / Override / Off - what the heating is doing as a whole."""
+    if ha.state(FORCE_OFF) == "on":
+        return "off"
+    if ha.state(OVERRIDE) == "on":
+        return "override"
+    if CENTRAL in boosted():
+        return "boost"
+    return "normal"
+
+
+def _row(label, value, minus, plus, act):
+    return {"type": "Container", "direction": "row", "alignItems": "center", "width": "48%", "spacing": "2%", "paddingBottom": "1.6vh", "items": [
+        apl._txt(label, 22, apl.DIM, "bold", width="40%"), apl._txt(value, 30, apl.TEXT, "bold", grow=1),
+        apl.pill("−", act, minus), apl.pill("+", act, plus)]}
+
+
+def _hm(t, d):
+    try:
+        h, m = (int(x) for x in str(t).split(":")[:2])
+    except ValueError:
+        h, m = 7, 0
+    m = (h * 60 + m + d) % 1440
+    return f"{m // 60:02d}:{m % 60:02d}:00"
+
+
+def _day(dt, d):
+    import datetime
+    try:
+        x = datetime.date.fromisoformat(str(dt)[:10])
+    except ValueError:
+        x = datetime.date.today()
+    return (x + datetime.timedelta(days=d)).isoformat()
+
+
+def _date(dt):
+    import datetime
+    try:
+        return datetime.date.fromisoformat(str(dt)[:10]).strftime("%-d %b %Y")
+    except ValueError:
+        return "—"
+
+
+def hsettings():
+    """Heating settings: Central Control now, the mode, winter + its dates, boost length, morning / night."""
+    cur, tgt, act = ha.attr(CENTRAL, "current_temperature"), ha.attr(CENTRAL, "temperature"), ha.attr(CENTRAL, "hvac_action") or ha.state(CENTRAL)
+    md, win = mode(), ha.state(WINTER) == "on"
+    hrs = _num(ha.state(BOOST_HOURS)) or 2
+    head = {"type": "Container", "direction": "row", "alignItems": "center", "paddingBottom": "2vh", "items": [
+        apl._txt(t1(cur), 64, apl.WARM, "bold"),
+        {"type": "Container", "paddingLeft": "2vw", "grow": 1, "items": [apl._txt("CENTRAL CONTROL", 18, apl.DIM, "bold"),
+                                                                       apl._txt(f"target {t1(tgt)} · {str(act).replace('_', ' ')}", 24, apl.TEXT)]},
+        apl.pill("Normal", "hmode", "normal", on=md == "normal"), apl.pill("Boost", "hmode", "boost", on=md == "boost"),
+        apl.pill("Override", "hmode", "override", on=md == "override"), apl.pill("Off", "hmode", "off", on=md == "off")]}
+    day_t, night_t = _num(ha.state(DAY_T)) or 20, _num(ha.state(NIGHT_T)) or 10
+    on_t, off_t = ha.state(ON_TIME, "07:00:00"), ha.state(OFF_TIME, "21:00:00")
+    ws, we = ha.state(WINTER_START), ha.state(WINTER_END)
+    rows = [
+        {"type": "Container", "direction": "row", "alignItems": "center", "width": "48%", "spacing": "2%", "paddingBottom": "1.6vh", "items": [
+            apl._txt("Winter", 22, apl.DIM, "bold", width="40%"), apl._txt("On" if win else "Off", 30, apl.TEXT, "bold", grow=1),
+            apl.pill("Winter " + ("on" if win else "off"), "toggle", WINTER, on=win)]},
+        _row("Boost length", f"{hrs:g} h", str(max(0.5, hrs - 0.5)), str(min(8, hrs + 0.5)), "set_boost_hours"),
+        _row("Winter starts", _date(ws), _day(ws, -7), _day(ws, 7), "set_winter_start"),
+        _row("Winter ends", _date(we), _day(we, -7), _day(we, 7), "set_winter_end"),
+        _row("Morning on at", str(on_t)[:5], _hm(on_t, -15), _hm(on_t, 15), "set_on_time"),
+        _row("Morning temp", f"{day_t:.1f}°", str(day_t - 0.5), str(day_t + 0.5), "set_day_t"),
+        _row("Night from", str(off_t)[:5], _hm(off_t, -15), _hm(off_t, 15), "set_off_time"),
+        _row("Night temp", f"{night_t:.1f}°", str(night_t - 0.5), str(night_t + 0.5), "set_night_t"),
+    ]
+    grid2 = [{"type": "Container", "direction": "row", "width": "100%", "items": rows[i:i + 2]} for i in range(0, len(rows), 2)]
+    return apl.document("heating", "Heating settings", [head] + grid2, _top())
+
+
+PAGES = {"home": home, "lights": lights, "heating": heating, "music": music, "hsettings": hsettings}
 
 
 def render(page):

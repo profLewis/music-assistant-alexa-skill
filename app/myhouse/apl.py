@@ -37,6 +37,14 @@ def pill(label, action, arg="", on=False, width="auto"):
                      "item": _txt(label, 26, "#15171d" if on else TEXT, "bold")}}
 
 
+def navpill(label, page):
+    """A pill that opens another page."""
+    return {"type": "TouchWrapper", "spacing": "12dp", "onPress": [{"type": "SendEvent", "arguments": ["page", page]}],
+            "item": {"type": "Frame", "borderRadius": "40dp", "backgroundColor": CARD, "borderWidth": "2dp", "borderColor": ACCENT,
+                     "paddingLeft": "28dp", "paddingRight": "28dp", "paddingTop": "14dp", "paddingBottom": "14dp",
+                     "item": _txt(label + "  ›", 26, ACCENT, "bold")}}
+
+
 def grid(items, per_row=4):
     """Rows of buttons, wrapping (APL Containers don't wrap on older Shows, so rows are built here)."""
     rows = [items[i:i + per_row] for i in range(0, len(items), per_row)]

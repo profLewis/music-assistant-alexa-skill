@@ -33,3 +33,11 @@ def room(name):
         if key.lower() in n:
             return key
     return None
+
+# HEATING SETTINGS (the page the Demand widget opens)
+CENTRAL = "climate.control_radiator_house"          # Central Control - the Library Nest; drives the boiler
+WINTER = "input_boolean.winter_is_coming"
+WINTER_START, WINTER_END = "input_datetime.winter_start", "input_datetime.winter_end"
+OVERRIDE, FORCE_OFF = "input_boolean.heating_override", "input_boolean.heating_force_off"
+DAY_T, NIGHT_T = "input_number.core_heating_temperature", "input_number.minimum_temperature"
+ON_TIME, OFF_TIME = "input_datetime.heating_on_time", "input_datetime.heating_off_time"

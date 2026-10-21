@@ -115,3 +115,28 @@ def test_root_endpoint_hands_cat_ballou_requests_to_it(client, house, monkeypatc
     ev["context"]["System"]["application"]["applicationId"] = "golden-skill"
     client.post("/", json=ev)
     assert seen == [1]
+
+
+def test_heating_settings_page_and_its_controls(house):
+    doc = json.dumps(pages.render("hsettings"), ensure_ascii=False)
+    assert "Heating settings" in doc and "Winter" in doc and "Boost length" in doc and "Morning temp" in doc
+    actions.do("hmode", "off")
+    assert ("input_boolean", "turn_on", {"entity_id": "input_boolean.heating_force_off"}) in house
+    actions.do("set_day_t", "20.5")
+    assert ("input_number", "set_value", {"entity_id": "input_number.core_heating_temperature", "value": 20.5}) in house
+    actions.do("set_on_time", "06:45:00")
+    assert ("input_datetime", "set_datetime", {"entity_id": "input_datetime.heating_on_time", "time": "06:45:00"}) in house
+    actions.do("set_winter_start", "2026-11-08")
+    assert house[-1] == ("input_datetime", "set_datetime", {"entity_id": "input_datetime.winter_start", "date": "2026-11-08"})
+
+
+def test_launch_opens_the_whole_control_panel_when_the_show_can(house, monkeypatch):
+    monkeypatch.setattr(handlers.widgets, "_opts", lambda: {"catballou_ha_token": "tok", "catballou_ha_url": "https://ha.example"})
+    iface = {**SHOW, "Alexa.Presentation.HTML": {"runtime": {"maxVersion": "1.1"}}}
+    r = run("LaunchRequest", iface=iface)["response"]
+    d = r["directives"][0]
+    assert d["type"] == "Alexa.Presentation.HTML.Start" and d["request"]["uri"] == "https://ha.example/local/catballou.html"
+    assert d["data"] == {"token": "tok", "page": "home"}
+    # no key set (or no web app support): the drawn screens instead
+    monkeypatch.setattr(handlers.widgets, "_opts", lambda: {})
+    assert run("LaunchRequest", iface=iface)["response"]["directives"][0]["type"] == "Alexa.Presentation.APL.RenderDocument"

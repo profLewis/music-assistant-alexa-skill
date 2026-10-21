@@ -7,8 +7,9 @@ from ask_sdk_core.dispatch_components import AbstractExceptionHandler, AbstractR
 from ask_sdk_core.skill_builder import SkillBuilder
 from ask_sdk_core.utils import get_slot_value, is_intent_name, is_request_type
 from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
+from ask_sdk_model.interfaces.alexa.presentation.html import Configuration, StartDirective, StartRequest, StartRequestMethod
 
-from . import actions, apl, deploy, pages
+from . import actions, apl, deploy, pages, widgets
 
 log = logging.getLogger("myhouse")
 INTENT_PAGE = {"LightsOnIntent": "lights", "LightsOffIntent": "lights", "BoostIntent": "heating", "EndBoostIntent": "heating",
@@ -21,6 +22,29 @@ def _screen(handler_input):
         return getattr(si, "alexa_presentation_apl", None) is not None
     except Exception:
         return False
+
+
+def _html(handler_input):
+    try:
+        si = handler_input.request_envelope.context.system.device.supported_interfaces
+        return getattr(si, "alexa_presentation_html", None) is not None
+    except Exception:
+        return False
+
+
+def _open_dashboard(handler_input, page="home"):
+    """THE WHOLE CONTROL PANEL on the Show: open the front-door page on Home Assistant (www/catballou.html), which
+    signs in with the Echo Show user's key and opens /control-panel/<page> - the dashboard's landscape layouts at the
+    Show's size. None when the Show can't (no web app support / no key set): the drawn screens are used instead."""
+    token = widgets._opts().get("catballou_ha_token")
+    base = (widgets._opts().get("catballou_ha_url") or "https://ha.proflewis.stream").rstrip("/")
+    if not token or not _html(handler_input):
+        return None
+    rb = handler_input.response_builder
+    rb.add_directive(StartDirective(data={"token": token, "page": page},
+                                    request=StartRequest(uri=f"{base}/local/catballou.html", method=StartRequestMethod.GET),
+                                    configuration=Configuration(timeout_in_seconds=1800)))
+    return rb.response
 
 
 def _page(handler_input, page=None):
@@ -71,7 +95,7 @@ class Launch(AbstractRequestHandler):
     def handle(self, handler_input):
         if not _screen(handler_input):
             return _reply(handler_input, actions.temperature())
-        return _reply(handler_input, None, "home")
+        return _open_dashboard(handler_input, "home") or _reply(handler_input, None, "home")
 
 
 class ShowPage(AbstractRequestHandler):
@@ -81,7 +105,9 @@ class ShowPage(AbstractRequestHandler):
     def handle(self, handler_input):
         p = (get_slot_value(handler_input, "page") or "home").lower()
         p = {"radiators": "heating", "rads": "heating", "the heating": "heating", "the lights": "lights", "the music": "music"}.get(p, p)
-        return _reply(handler_input, None if _screen(handler_input) else "MyHouse needs a screen for that.", p if p in pages.PAGES else "home")
+        dash = {"home": "home", "lights": "lights", "heating": "energy", "music": "music"}.get(p)
+        return (_open_dashboard(handler_input, dash) if dash else None) or \
+            _reply(handler_input, None if _screen(handler_input) else "Cat Ballou needs a screen for that.", p if p in pages.PAGES else "home")
 
 
 class Command(AbstractRequestHandler):
@@ -114,6 +140,9 @@ class Touch(AbstractRequestHandler):
     def handle(self, handler_input):
         args = list(getattr(handler_input.request_envelope.request, "arguments", None) or [])
         kind = args[0] if args else ""
+        if kind == "openPage":   # a widget: open Cat Ballou (the control panel) on that page
+            p = args[1] if len(args) > 1 else "home"
+            return _open_dashboard(handler_input, {"hsettings": "settings-heating"}.get(p, p)) or _reply(handler_input, None, p)
         if kind == "page" and len(args) > 1:
             return _reply(handler_input, None, args[1])
         if kind == "tick":

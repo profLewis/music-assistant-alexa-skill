@@ -107,7 +107,8 @@ def manifest(endpoint, cert=None, viewports=None, regions=None):
         "publishingInformation": {"locales": {l: loc for l in LOCALES}, "isAvailableWorldwide": False,
                                   "distributionCountries": ["GB"], "category": "SMART_HOME"},
         "apis": {"custom": {"endpoint": {"uri": endpoint, "sslCertificateType": cert or get_setting("SKILL_CERTIFICATE_TYPE", "Wildcard")},
-                            "interfaces": [{"type": "ALEXA_PRESENTATION_APL", "supportedViewports": viewports or VIEWPORTS}],
+                            "interfaces": [{"type": "ALEXA_PRESENTATION_APL", "supportedViewports": viewports or VIEWPORTS},
+                                           {"type": "ALEXA_PRESENTATION_HTML"}],   # (the web app: the whole control panel on the Show)
                             **({"regions": regions} if regions else {})}},
         "privacyAndCompliance": {"allowsPurchases": False, "usesPersonalInfo": False, "isChildDirected": False,
                                  "isExportCompliant": True, "containsAds": False},
