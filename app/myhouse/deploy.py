@@ -172,3 +172,17 @@ def deploy(app):
             _lock.release()
 
     threading.Thread(target=run, daemon=True).start()
+
+
+def simulate(text, locale="en-GB"):
+    """Ask Amazon to simulate saying `text` to the development skill and return what happened (for diagnosing)."""
+    m, sid = manager(), skill_id()
+    path = f"/v1/skills/{quote(sid, safe='')}/stages/development/simulations"
+    r = m.api("POST", path, json={"session": {"mode": "FORCE_NEW_SESSION"}, "input": {"content": text}, "device": {"locale": locale}}).json()
+    sim = r.get("id")
+    for _ in range(30):
+        time.sleep(1.5)
+        b = m.api("GET", f"{path}/{sim}").json()
+        if b.get("status") != "IN_PROGRESS":
+            return b
+    return {"status": "TIMEOUT"}

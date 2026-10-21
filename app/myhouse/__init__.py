@@ -25,6 +25,12 @@ def register(app):
     def amazon():
         return jsonify(deploy.amazon_manifests())
 
+    @bp.route("/myhouse/simulate", methods=["POST"])
+    def simulate():
+        from flask import request
+        body = request.get_json(silent=True) or {}
+        return jsonify(deploy.simulate(body.get("text", "open cat ballou"), body.get("locale", "en-GB")))
+
     @bp.route("/myhouse/status", methods=["GET"])
     def status():
         return jsonify(deploy.status())
