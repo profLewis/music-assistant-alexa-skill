@@ -94,11 +94,42 @@ class OurSkillOnly(AbstractRequestHandler):
         return handler_input.response_builder.set_should_end_session(True).response
 
 
+def remember_user(handler_input):
+    """The widgets' live data goes to this user (the skill-scoped Alexa user id), so it's kept from every request."""
+    try:
+        uid = handler_input.request_envelope.context.system.user.user_id
+        d = deploy._load()
+        if uid and d.get("user_id") != uid:
+            d["user_id"] = uid
+            deploy._save(d)
+    except Exception:
+        pass
+
+
+class Widgets(AbstractRequestHandler):
+    """Amazon's widget messages (installed / removed / update / errors): note the user and send the data straight away."""
+    def can_handle(self, handler_input):
+        t = getattr(handler_input.request_envelope.request, "object_type", "") or ""
+        return t.startswith("Alexa.DataStore")
+
+    def handle(self, handler_input):
+        remember_user(handler_input)
+        t = handler_input.request_envelope.request.object_type
+        log.info("Peach Banana widgets: %s", t)
+        if t.endswith("UsagesInstalled"):
+            try:
+                widgets.push(deploy._load().get("user_id"), force=True)
+            except Exception:
+                log.exception("Peach Banana widget push failed")
+        return handler_input.response_builder.response
+
+
 class Launch(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_request_type("LaunchRequest")(handler_input) or is_intent_name("AMAZON.NavigateHomeIntent")(handler_input)
 
     def handle(self, handler_input):
+        remember_user(handler_input)
         if not _screen(handler_input):
             return _reply(handler_input, actions.temperature())
         return _open_dashboard(handler_input, "home") or _reply(handler_input, None, "home")
@@ -199,7 +230,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Launch(), ShowPage(), Command(), Touch(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Command(), Touch(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()

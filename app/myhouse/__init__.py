@@ -16,6 +16,8 @@ def register(app):
     def invoke():
         return adapter.dispatch_request()
 
+    from . import widgets
+    widgets.start(lambda: deploy._load().get("user_id"))   # keep the widgets' Central Control reading current
     app.extensions["myhouse_adapter"] = adapter   # (the root endpoint hands Peach Banana's requests to it - see app.invoke_skill)
 
     @bp.route("/myhouse/deploy", methods=["POST"])

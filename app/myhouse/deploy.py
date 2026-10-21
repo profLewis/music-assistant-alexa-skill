@@ -11,9 +11,10 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 
-from skill_deployment import DeploymentError, https_url, manager
+from skill_deployment import DeploymentError, https_url, manager, pack
 from app_settings import get_setting
 
+from . import widgets
 from .model import interaction_model
 
 STATE = Path(os.environ.get("MYHOUSE_STATE_PATH", "/data/myhouse.json"))
@@ -108,7 +109,7 @@ def manifest(endpoint, cert=None, viewports=None, regions=None):
                                   "distributionCountries": ["GB"], "category": "SMART_HOME"},
         "apis": {"custom": {"endpoint": {"uri": endpoint, "sslCertificateType": cert or get_setting("SKILL_CERTIFICATE_TYPE", "Wildcard")},
                             "interfaces": [{"type": "ALEXA_PRESENTATION_APL", "supportedViewports": viewports or VIEWPORTS},
-                                           {"type": "ALEXA_PRESENTATION_HTML"}],   # (the web app: the whole control panel on the Show)
+                                           {"type": "ALEXA_PRESENTATION_HTML"}] + widgets.INTERFACES,   # (the web app: the whole control panel on the Show; the widgets)
                             **({"regions": regions} if regions else {})}},
         "privacyAndCompliance": {"allowsPurchases": False, "usesPersonalInfo": False, "isChildDirected": False,
                                  "isExportCompliant": True, "containsAds": False},
@@ -160,17 +161,32 @@ def deploy(app):
                 vp = next((i.get("supportedViewports") for i in music_interfaces(m) if i.get("type") == "ALEXA_PRESENTATION_APL" and i.get("supportedViewports")), None)
                 body = manifest(endpoint, ep.get("sslCertificateType") or "Wildcard", vp, ep.get("regions"))
                 if not sid:
-                    _say("creating", "Creating the MyHouse skill at Amazon…")
+                    _say("creating", "Creating the skill at Amazon…")
                     sid = m.api("POST", "/v1/skills", json={"vendorId": vendor, **body}).json()["skillId"]
                     d["skill_id"] = sid; _save(d)
-                else:
-                    _say("updating", "Updating the MyHouse skill…")
-                    m.api("PUT", f"/v1/skills/{quote(sid, safe='')}/stages/development/manifest", json=body)
                 path = f"/v1/skills/{quote(sid, safe='')}"
-                _wait(m, path, "manifest")
+                # the WHOLE skill package (manifest, voice model, the widgets) - widgets only arrive this way
+                files = {"skill-package/skill.json": json.dumps(body).encode()}
                 for loc in LOCALES:
-                    _say("model", f"Uploading the voice model ({loc})…")
-                    m.api("PUT", f"{path}/stages/development/interactionModel/locales/{loc}", json=interaction_model())
+                    files[f"skill-package/interactionModels/custom/{loc}.json"] = json.dumps(interaction_model()).encode()
+                files.update(widgets.packages(LOCALES))
+                _say("uploading", "Uploading the skill package (with the widgets)…")
+                up = m.api("POST", "/v1/skills/uploads").json()["uploadUrl"]
+                m.transfer("PUT", up, data=pack(files), headers={"Content-Type": "application/zip"})
+                job = m.api("POST", f"{path}/imports", json={"location": up})
+                _say("importing", "Amazon is importing the package…")
+                st = None
+                for _ in range(200):
+                    st = m.api("GET", m.job_path(job, "imports")).json()
+                    if st.get("status") != "IN_PROGRESS":
+                        break
+                    time.sleep(3)
+                if (st or {}).get("status") != "SUCCEEDED":
+                    errs = []
+                    for r in (st or {}).get("skill", {}).get("resources", []) or []:
+                        errs += [f"{r.get('name')}: {e.get('message')}" for e in (r.get("errors") or [])]
+                    raise DeploymentError("Amazon couldn't import the package: " + ("; ".join(errs) or json.dumps(st)[:400]))
+                _wait(m, path, "manifest")
                 for loc in LOCALES:
                     _say("building", f"Amazon is building the voice model ({loc})…")
                     _wait(m, path, "interactionModel", loc)
