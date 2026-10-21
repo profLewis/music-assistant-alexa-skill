@@ -21,6 +21,10 @@ def register(app):
         deploy.deploy(current_app._get_current_object())
         return jsonify(deploy.status()), 202
 
+    @bp.route("/myhouse/amazon", methods=["GET"])
+    def amazon():
+        return jsonify(deploy.amazon_manifests())
+
     @bp.route("/myhouse/status", methods=["GET"])
     def status():
         return jsonify(deploy.status())
