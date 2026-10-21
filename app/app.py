@@ -186,7 +186,7 @@ def _check_app_basic_auth():
         return Response("Open this page through Home Assistant ingress", 403)
     # Allow the Alexa skill POST endpoint to be called without app-level auth
     if request.path in ("/health", "/test-audio.mp3") or (
-        request.path == "/" and request.method == "POST"
+        request.path in ("/", "/myhouse") and request.method == "POST"  # (fork: + MyHouse)
     ):
         return None
     if request.path.startswith("/now/"):
@@ -317,6 +317,11 @@ def _record_incoming_intent(response):
 
 # Deployment jobs share this single-worker application with playback requests.
 register_setup(app)
+
+# fork: MyHouse - the house on the Echo Show, its own skill at /myhouse
+from myhouse import register as register_myhouse  # noqa: E402
+
+register_myhouse(app)
 app.config["INTENT_LOGS"] = []
 app.config["INTENT_LOGS_MAXLEN"] = 500
 
