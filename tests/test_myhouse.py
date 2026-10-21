@@ -131,12 +131,13 @@ def test_heating_settings_page_and_its_controls(house):
 
 
 def test_launch_opens_the_whole_control_panel_when_the_show_can(house, monkeypatch):
-    monkeypatch.setattr(handlers.widgets, "_opts", lambda: {"catballou_ha_token": "tok", "catballou_ha_url": "https://ha.example"})
+    from myhouse import signin
+    monkeypatch.setattr(signin, "_opts", lambda: {"catballou_ha_password": "pw", "catballou_ha_url": "https://ha.example"})
+    monkeypatch.setattr(signin, "code", lambda: "CODE1")
     iface = {**SHOW, "Alexa.Presentation.HTML": {"runtime": {"maxVersion": "1.1"}}}
     r = run("LaunchRequest", iface=iface)["response"]
     d = r["directives"][0]
     assert d["type"] == "Alexa.Presentation.HTML.Start" and d["request"]["uri"] == "https://ha.example/local/catballou.html"
-    assert d["data"] == {"token": "tok", "page": "home"}
-    # no key set (or no web app support): the drawn screens instead
-    monkeypatch.setattr(handlers.widgets, "_opts", lambda: {})
+    assert d["data"]["code"] == "CODE1" and d["data"]["page"] == "home" and d["data"]["state"]
+    monkeypatch.setattr(signin, "_opts", lambda: {})   # no password set: the drawn screens instead
     assert run("LaunchRequest", iface=iface)["response"]["directives"][0]["type"] == "Alexa.Presentation.APL.RenderDocument"
