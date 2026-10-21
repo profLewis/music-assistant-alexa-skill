@@ -1,5 +1,5 @@
-"""Cat Ballou: signing the Echo Show into Home Assistant WITHOUT storage. The Show's browser (Alexa Web API) won't
-let pages keep anything, so Home Assistant's frontend can't store a sign-in. Instead, each time Cat Ballou opens, the
+"""Apple Banana: signing the Echo Show into Home Assistant WITHOUT storage. The Show's browser (Alexa Web API) won't
+let pages keep anything, so Home Assistant's frontend can't store a sign-in. Instead, each time Apple Banana opens, the
 add-on signs in as the Echo Show user (Home Assistant's own login flow, like the login page does) and gets a
 ONE-TIME authorization code (valid ~10 minutes). The Show opens the control panel with that code, and the frontend
 exchanges it for a sign-in it keeps in memory for as long as the page is open."""

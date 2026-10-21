@@ -1,13 +1,13 @@
-"""Cat Ballou WIDGETS on the Echo Show home screen (Alexa widgets: an APL package in the skill package, live data
+"""Apple Banana WIDGETS on the Echo Show home screen (Alexa widgets: an APL package in the skill package, live data
 through Amazon's Data Store):
 
   CentralControl - the Central Control (Library Nest) temperature, its target and what it's doing; a tap opens the
                    Heating settings page.
-  CatBallou      - opens Cat Ballou.
+  CatBallou      - opens Apple Banana.
 
 The numbers are pushed to the Data Store (namespace "house", key "central") whenever they change, using the skill's
 own Alexa Client Id / Secret (console: Build > Tools > Permissions), set in the add-on's Configuration as
-myhouse_client_id / myhouse_client_secret. The user id to push to is saved from Cat Ballou's own requests."""
+myhouse_client_id / myhouse_client_secret. The user id to push to is saved from Apple Banana's own requests."""
 
 import json
 import logging
@@ -74,7 +74,7 @@ def push(user_id, force=False):
         "commands": [{"type": "PUT_OBJECT", "namespace": NS, "key": KEY, "content": data}],
         "target": {"type": "USER", "id": user_id}})
     if r.status_code >= 300:
-        log.warning("Cat Ballou widget push: %s %s", r.status_code, r.text[:200])
+        log.warning("Apple Banana widget push: %s %s", r.status_code, r.text[:200])
         return False
     _last.update(sig=sig, at=time.time())
     return True
@@ -87,7 +87,7 @@ def start(get_user):
             try:
                 push(get_user())
             except Exception:
-                log.exception("Cat Ballou widget push failed")
+                log.exception("Apple Banana widget push failed")
             time.sleep(60)
     threading.Thread(target=loop, daemon=True, name="catballou-widgets").start()
 
@@ -110,7 +110,7 @@ def _central_doc():
                       _txt("CENTRAL CONTROL", 16, "#8b93a5", "bold"),
                       _txt("${dsCentral.temp ?? '—'}", 72, "${dsCentral.heating ? '#ffb347' : '#eef1f6'}", "bold"),
                       _txt("${dsCentral.target ?? ''}", 22),
-                      _txt("${dsCentral.state ?? 'Open Cat Ballou to start'}", 22, "#ffb347"),
+                      _txt("${dsCentral.state ?? 'Open Apple Banana to start'}", 22, "#ffb347"),
                       _txt("${dsCentral.house ? 'house ' + dsCentral.house + ' · ' + dsCentral.at : ''}", 16, "#8b93a5", paddingTop="12dp"),
                       _txt("tap for heating settings", 14, "#8b93a5", paddingTop="8dp")]}}]}}
 
@@ -122,7 +122,7 @@ def _open_doc():
          "item": {"type": "Container", "width": "100vw", "height": "100vh", "justifyContent": "center", "alignItems": "center",
                   "backgroundColor": "#141821", "items": [
                       {"type": "Image", "source": ICON + "myhouse_512.png", "width": "45vw", "height": "45vw"},
-                      _txt("Cat Ballou", 34, "#eef1f6", "bold", paddingTop="12dp"),
+                      _txt("Apple Banana", 34, "#eef1f6", "bold", paddingTop="12dp"),
                       _txt("${dsCentral.house ? 'house ' + dsCentral.house : 'lights · heating · music'}", 18, "#8b93a5")]}}]}}
 
 
@@ -131,7 +131,7 @@ def packages(locales):
     out = {}
     for wid, name, desc, doc, preview in (
             ("CentralControl", "Central Control", "The Central Control temperature; tap for the heating settings.", _central_doc(), "widget_central.png"),
-            ("CatBallou", "Cat Ballou", "Opens Cat Ballou - lights, heating and music.", _open_doc(), "widget_open.png")):
+            ("AppleBanana", "Apple Banana", "Opens Apple Banana - lights, heating and music.", _open_doc(), "widget_open.png")):
         base = f"skill-package/dataStorePackages/{wid}/"
         meta = {"name": name, "description": desc, "keywords": ["house", "heating"], "iconUri": ICON + "widget_icon_450.png", "previews": [ICON + preview]}
         out[base + "manifest.json"] = {"packageVersion": "1.0", "packageType": "APL_PACKAGE", "manifest": {
@@ -144,6 +144,6 @@ def packages(locales):
     return {k: json.dumps(v).encode() for k, v in out.items()}
 
 
-INTERFACES = [{"type": "ALEXA_DATASTORE_PACKAGEMANAGER", "packages": [{"id": "CentralControl"}, {"id": "CatBallou"}]},
+INTERFACES = [{"type": "ALEXA_DATASTORE_PACKAGEMANAGER", "packages": [{"id": "CentralControl"}, {"id": "AppleBanana"}]},
               {"type": "ALEXA_DATA_STORE"},
               {"type": "ALEXA_EXTENSION", "requestedExtensions": [{"uri": "alexaext:datastore:10"}]}]
