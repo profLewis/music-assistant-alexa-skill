@@ -44,7 +44,7 @@ def _open_dashboard(handler_input, page="home"):
     try:
         data = {"code": signin.code(), "state": signin.state(), "page": page}
     except Exception:
-        log.exception("Apple Banana: signing the Show in failed")
+        log.exception("Peach Banana: signing the Show in failed")
         return None
     base = signin._cfg()["url"]
     rb = handler_input.response_builder
@@ -113,7 +113,7 @@ class ShowPage(AbstractRequestHandler):
         p = {"radiators": "heating", "rads": "heating", "the heating": "heating", "the lights": "lights", "the music": "music"}.get(p, p)
         dash = {"home": "home", "lights": "lights", "heating": "energy", "music": "music"}.get(p)
         return (_open_dashboard(handler_input, dash) if dash else None) or \
-            _reply(handler_input, None if _screen(handler_input) else "Apple Banana needs a screen for that.", p if p in pages.PAGES else "home")
+            _reply(handler_input, None if _screen(handler_input) else "Peach Banana needs a screen for that.", p if p in pages.PAGES else "home")
 
 
 class Command(AbstractRequestHandler):
@@ -146,7 +146,7 @@ class Touch(AbstractRequestHandler):
     def handle(self, handler_input):
         args = list(getattr(handler_input.request_envelope.request, "arguments", None) or [])
         kind = args[0] if args else ""
-        if kind == "openPage":   # a widget: open Apple Banana (the control panel) on that page
+        if kind == "openPage":   # a widget: open Peach Banana (the control panel) on that page
             p = args[1] if len(args) > 1 else "home"
             return _open_dashboard(handler_input, {"hsettings": "settings-heating"}.get(p, p)) or _reply(handler_input, None, p)
         if kind == "page" and len(args) > 1:

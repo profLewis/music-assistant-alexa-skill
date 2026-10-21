@@ -98,13 +98,13 @@ def test_other_skills_are_refused(house, monkeypatch):
 
 def test_voice_model_rooms_and_invocation():
     m = model.interaction_model()["interactionModel"]["languageModel"]
-    assert m["invocationName"] == "apple banana"
+    assert m["invocationName"] == "peach banana"
     rooms = next(t for t in m["types"] if t["name"] == "ROOM")["values"]
     assert {"name": {"value": "living room", "synonyms": ["lounge", "sitting room"]}} in rooms
 
 
 def test_root_endpoint_hands_cat_ballou_requests_to_it(client, house, monkeypatch):
-    # Apple Banana shares the music skill's address: a request with its skill id goes to the house skill
+    # Peach Banana shares the music skill's address: a request with its skill id goes to the house skill
     from app import app as flask_app
     monkeypatch.setitem(flask_app.config, "ASK_VERIFY_REQUEST_SIGNATURE", False)
     monkeypatch.setitem(flask_app.config, "ASK_VERIFY_REQUEST_TIMESTAMP", False)
