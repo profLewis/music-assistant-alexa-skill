@@ -33,7 +33,7 @@ def _html(handler_input):
         return False
 
 
-def _open_dashboard(handler_input, page="home"):
+def _open_dashboard(handler_input, page="home", extra=None):
     """THE WHOLE CONTROL PANEL on the Show: open /control-panel/<page> signed in as the Echo Show user with a one-time
     code (signin.py - the Show's browser keeps nothing, so no stored sign-in). The front-door page (www/catballou.html)
     turns the code into the frontend's own sign-in. None when the Show can't (no web app support / no password set):
@@ -42,7 +42,7 @@ def _open_dashboard(handler_input, page="home"):
     if not signin.configured() or not _html(handler_input):
         return None
     try:
-        data = {"code": signin.code(), "state": signin.state(), "page": page}
+        data = {"code": signin.code(), "state": signin.state(), "page": page, **(extra or {})}
     except Exception:
         log.exception("Peach Banana: signing the Show in failed")
         return None

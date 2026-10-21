@@ -6,6 +6,9 @@ screen from Peach Banana every time a song started.
   door, myhouse.handlers._open_dashboard), the session kept open for it.
   The page's first message {"type": "stop-music"} → AudioPlayer.Stop (and Music Assistant paused): opening it quits
   any music playing.
+  MUSIC PLAYED TO A SHOW (MA's "ask music assistant to play audio", a new session) → the control panel opens on its
+  Music page instead of Alexa's own player, and ITS first message {"type": "play"} starts the stream - so the music is
+  played from inside the open control panel, by the same skill.
   While it's open on a device, nothing the music skill answers there ends the session (MA's own play / pause reach this
   skill as voice requests) - unless the request is a user's Stop / Cancel. What happens is logged (session new / same),
   as this is a test of whether the Show keeps the page up while the same skill plays.
@@ -62,6 +65,23 @@ class ScreenAppLaunch(AbstractRequestHandler):
         return r
 
 
+class ScreenAppPlay(AbstractRequestHandler):
+    """Music Assistant's play to a Show: open the control panel on the Music page; the page asks for the stream."""
+    def can_handle(self, handler_input):
+        return (enabled() and is_intent_name("PlayAudio")(handler_input) and _html(handler_input)
+                and OPEN.get(_dev(handler_input)) != _sid(handler_input))   # (already open in this session: just play)
+
+    def handle(self, handler_input):
+        from myhouse.handlers import _open_dashboard
+        r = _open_dashboard(handler_input, "music", {"play": 1})
+        if r is None:   # (no sign-in set up: Alexa's own player, as before)
+            from . import lambda_function
+            return lambda_function.LaunchRequestOrPlayAudioHandler().handle(handler_input)
+        OPEN[_dev(handler_input)] = _sid(handler_input)
+        log.info("Screen app: music for a Show - opening the control panel's Music page (session %s)", (_sid(handler_input) or "")[-8:])
+        return r
+
+
 class ScreenAppMessage(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_request_type("Alexa.Presentation.HTML.Message")(handler_input)
@@ -71,6 +91,10 @@ class ScreenAppMessage(AbstractRequestHandler):
         kind = msg.get("type") if isinstance(msg, dict) else None
         log.info("Screen app: message %s (session %s)", kind, (_sid(handler_input) or "")[-8:])
         rb = handler_input.response_builder
+        if kind == "play":   # (the stream Music Assistant pushed; Alexa's AudioPlayer only - no APL page over the panel)
+            from . import lambda_function
+            handler_input.attributes_manager.request_attributes["supports_apl"] = False
+            return lambda_function.LaunchRequestOrPlayAudioHandler().handle(handler_input)
         if kind == "stop-music":
             rb.add_directive(StopDirective())
             try:
