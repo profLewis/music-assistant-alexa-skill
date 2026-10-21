@@ -40,3 +40,14 @@ def test_off_or_no_browser_launch_is_unchanged(client, monkeypatch):
     monkeypatch.setenv("MUSIC_SCREEN_APP", "false")
     r = handlers.lambda_handler(build_event("LaunchRequest", None, {}, True, HTML, "en-GB"), None)["response"]
     assert "Alexa.Presentation.HTML.Start" not in [d["type"] for d in r["directives"]]
+
+
+def test_music_played_to_a_show_opens_the_music_page_which_starts_it(client, monkeypatch):
+    _signin(monkeypatch); screen_app.OPEN.clear()
+    client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
+    r = handlers.lambda_handler(build_event("IntentRequest", "PlayAudio", {}, True, HTML, "en-GB"), None)["response"]
+    d = r["directives"]
+    assert [x["type"] for x in d] == ["Alexa.Presentation.HTML.Start"] and d[0]["data"]["page"] == "music" and d[0]["data"]["play"] == 1
+    assert not r.get("shouldEndSession")
+    r = handlers.lambda_handler(build_event("Alexa.Presentation.HTML.Message", None, {"message": {"type": "play"}}, False, HTML, "en-GB"), None)["response"]
+    assert [x["type"] for x in r["directives"]] == ["AudioPlayer.Play"] and not r.get("shouldEndSession")
