@@ -34,7 +34,36 @@ def skill_id():
     return _load().get("skill_id")
 
 
-def manifest(endpoint):
+def music_endpoint(m):
+    """The music skill's endpoint as Amazon has it (the one that's known to work): its certificate type is copied."""
+    sid = m.state.get("skill_id")
+    if not sid:
+        return {}
+    body = m.api("GET", f"/v1/skills/{quote(sid, safe='')}/stages/development/manifest").json()
+    return ((body.get("manifest") or {}).get("apis") or {}).get("custom", {}).get("endpoint") or {}
+
+
+def amazon_manifests():
+    """Both skills' endpoint + interfaces as Amazon has them now (for checking)."""
+    m = manager(); out = {}
+    for name, sid in (("music", m.state.get("skill_id")), ("house", skill_id())):
+        if sid:
+            b = m.api("GET", f"/v1/skills/{quote(sid, safe='')}/stages/development/manifest").json().get("manifest", {})
+            c = (b.get("apis") or {}).get("custom") or {}
+            out[name] = {"endpoint": c.get("endpoint"), "regions": c.get("regions"), "interfaces": c.get("interfaces"),
+                         "locales": list(((b.get("publishingInformation") or {}).get("locales") or {}).keys())}
+            st = m.api("GET", f"/v1/skills/{quote(sid, safe='')}/status").json()
+            out[name]["status"] = {k: (v.get("lastUpdateRequest", {}).get("status") if isinstance(v, dict) and "lastUpdateRequest" in v else
+                                       {l: x.get("lastUpdateRequest", {}).get("status") for l, x in v.items()} if isinstance(v, dict) else v)
+                                   for k, v in st.items()}
+            try:
+                out[name]["enablement"] = m.api("GET", f"/v1/skills/{quote(sid, safe='')}/stages/development/enablement").status_code
+            except Exception as e:  # noqa: BLE001
+                out[name]["enablement"] = str(e)[:80]
+    return out
+
+
+def manifest(endpoint, cert=None):
     loc = {
         "name": "Cat Ballou",
         "summary": "The house on your Echo Show: lights, heating and music.",
@@ -50,7 +79,7 @@ def manifest(endpoint):
         "manifestVersion": "1.0",
         "publishingInformation": {"locales": {l: loc for l in LOCALES}, "isAvailableWorldwide": False,
                                   "distributionCountries": ["GB"], "category": "SMART_HOME"},
-        "apis": {"custom": {"endpoint": {"uri": endpoint, "sslCertificateType": get_setting("SKILL_CERTIFICATE_TYPE", "Wildcard")},
+        "apis": {"custom": {"endpoint": {"uri": endpoint, "sslCertificateType": cert or get_setting("SKILL_CERTIFICATE_TYPE", "Wildcard")},
                             "interfaces": [{"type": "ALEXA_PRESENTATION_APL"}]}},
         "privacyAndCompliance": {"allowsPurchases": False, "usesPersonalInfo": False, "isChildDirected": False,
                                  "isExportCompliant": True, "containsAds": False},
@@ -98,7 +127,8 @@ def deploy(app):
                     raise DeploymentError("Deploy the music skill from Setup first (no Amazon account selected)")
                 endpoint = https_url(get_setting("SKILL_HOSTNAME", "").strip(), "Skill endpoint").rstrip("/") + "/myhouse"
                 d = _load(); sid = d.get("skill_id")
-                body = manifest(endpoint)
+                ep = music_endpoint(m)   # the music skill's endpoint works: same host, same certificate type
+                body = manifest(endpoint, ep.get("sslCertificateType"))
                 if not sid:
                     _say("creating", "Creating the MyHouse skill at Amazon…")
                     sid = m.api("POST", "/v1/skills", json={"vendorId": vendor, **body}).json()["skillId"]
