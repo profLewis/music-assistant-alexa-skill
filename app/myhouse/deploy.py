@@ -201,6 +201,24 @@ def deploy(app):
     threading.Thread(target=run, daemon=True).start()
 
 
+def music_html():
+    """The control panel inside the MUSIC skill (skill/screen_app.py): its manifest at Amazon gets the web-app interface
+    (Alexa.Presentation.HTML) added - nothing else changed. (The music skill's own Setup → Deploy rebuilds its manifest
+    without it: run this again after one.)"""
+    m = manager(); sid = m.state.get("skill_id")
+    if not sid:
+        raise DeploymentError("The music skill isn't deployed")
+    path = f"/v1/skills/{quote(sid, safe='')}/stages/development/manifest"
+    body = m.api("GET", path).json()
+    ifs = body["manifest"]["apis"]["custom"].setdefault("interfaces", [])
+    if any(i.get("type") == "ALEXA_PRESENTATION_HTML" for i in ifs):
+        return {"changed": False, "interfaces": [i.get("type") for i in ifs]}
+    ifs.append({"type": "ALEXA_PRESENTATION_HTML"})
+    m.api("PUT", path, json={"manifest": body["manifest"]})
+    _wait(m, f"/v1/skills/{quote(sid, safe='')}", "manifest")
+    return {"changed": True, "interfaces": [i.get("type") for i in ifs]}
+
+
 def _v2(m, method, path, **kw):
     """A call to Amazon's v2 API (the simulator) - the deployment manager only allows v1 paths."""
     r = m._send_once(method, path, 0, kw)

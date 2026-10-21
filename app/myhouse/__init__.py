@@ -35,6 +35,13 @@ def register(app):
         body = request.get_json(silent=True) or {}
         return jsonify(deploy.simulate(body.get("text", "open peach banana"), body.get("locale", "en-GB")))
 
+    @bp.route("/myhouse/music-html", methods=["POST"])
+    def music_html():
+        try:
+            return jsonify(deploy.music_html())
+        except Exception as e:  # noqa: BLE001
+            return jsonify({"error": str(e)[:400]}), 500
+
     @bp.route("/myhouse/status", methods=["GET"])
     def status():
         return jsonify(deploy.status())
