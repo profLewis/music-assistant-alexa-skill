@@ -1,7 +1,8 @@
 """MyHouse actions: what a tap or a spoken command does to the house. Each returns a short sentence to say (or None)."""
 
 from . import ha
-from .house import BOOST_HOURS, GROUP, LEAD, ROOMS, TARGET, room
+from .house import (BOOST_HOURS, CENTRAL, DAY_T, FORCE_OFF, GROUP, LEAD, NIGHT_T, OFF_TIME, ON_TIME, OVERRIDE, ROOMS, TARGET,
+                    WINTER, WINTER_END, WINTER_START, room)
 from .pages import _num, boosted, lights_on, t1
 
 
@@ -87,6 +88,27 @@ def music(act):
     return "I can pause, play, skip, go back, or make it louder or quieter."
 
 
+def heating_mode(m):
+    """Normal / Boost (Central Control up a degree for the boost length) / Override (on regardless) / Off (off regardless)."""
+    if m in ("normal", "boost", "override", "off"):
+        ha.call("input_boolean", "turn_on" if m == "override" else "turn_off", {"entity_id": OVERRIDE})
+        ha.call("input_boolean", "turn_on" if m == "off" else "turn_off", {"entity_id": FORCE_OFF})
+    if m == "normal" and CENTRAL in boosted():
+        ha.call("script", "heating_end_boost", {"entity": CENTRAL, "quick": True})
+    if m == "boost":
+        cur = _num(ha.attr(CENTRAL, "current_temperature")) or _num(ha.state(TARGET)) or 19.0
+        hours = _num(ha.state(BOOST_HOURS)) or 2
+        ha.call("script", "heating_boost", {"entity": CENTRAL, "temp": min(28.0, round((cur + 1) * 2) / 2), "hours": hours})
+        return f"Boosting the heating for {hours:g} hours."
+    return {"normal": "Heating back to normal.", "override": "Heating on regardless.", "off": "Heating off."}.get(m)
+
+
+def _num_set(entity, v, lo, hi):
+    x = _num(v)
+    if x is not None:
+        ha.call("input_number", "set_value", {"entity_id": entity, "value": max(lo, min(hi, round(x * 2) / 2))})
+
+
 def do(action, arg):
     """A tap on the screen: ["act", action, arg]."""
     if action == "room_lights":
@@ -101,4 +123,18 @@ def do(action, arg):
         return set_target(arg)
     if action == "music":
         return music(arg)
+    if action == "hmode":
+        return heating_mode(arg)
+    if action == "toggle" and arg in (WINTER,):
+        return ha.call("input_boolean", "toggle", {"entity_id": arg}) and None
+    if action == "set_boost_hours":
+        return _num_set(BOOST_HOURS, arg, 0.5, 8)
+    if action == "set_day_t":
+        return _num_set(DAY_T, arg, 10, 26)
+    if action == "set_night_t":
+        return _num_set(NIGHT_T, arg, 10, 22)
+    if action in ("set_on_time", "set_off_time"):
+        return ha.call("input_datetime", "set_datetime", {"entity_id": ON_TIME if action == "set_on_time" else OFF_TIME, "time": arg}) and None
+    if action in ("set_winter_start", "set_winter_end"):
+        return ha.call("input_datetime", "set_datetime", {"entity_id": WINTER_START if action == "set_winter_start" else WINTER_END, "date": arg}) and None
     return None
