@@ -143,9 +143,9 @@ def deploy(app):
                 vendor = m.state.get("vendor_id")
                 if not vendor:
                     raise DeploymentError("Deploy the music skill from Setup first (no Amazon account selected)")
-                endpoint = https_url(get_setting("SKILL_HOSTNAME", "").strip(), "Skill endpoint").rstrip("/") + "/myhouse"
+                ep = music_endpoint(m)   # the music skill's endpoint works: same address, same certificate type
+                endpoint = ep.get("uri") or https_url(get_setting("SKILL_HOSTNAME", "").strip(), "Skill endpoint")   # the SAME address as the music skill (Amazon reaches it; /myhouse it never called) - requests are told apart by skill id
                 d = _load(); sid = d.get("skill_id")
-                ep = music_endpoint(m)   # the music skill's endpoint works: same host, same certificate type
                 vp = next((i.get("supportedViewports") for i in music_interfaces(m) if i.get("type") == "ALEXA_PRESENTATION_APL" and i.get("supportedViewports")), None)
                 body = manifest(endpoint, ep.get("sslCertificateType"), vp)
                 if not sid:

@@ -16,6 +16,8 @@ def register(app):
     def invoke():
         return adapter.dispatch_request()
 
+    app.extensions["myhouse_adapter"] = adapter   # (the root endpoint hands Cat Ballou's requests to it - see app.invoke_skill)
+
     @bp.route("/myhouse/deploy", methods=["POST"])
     def start_deploy():
         deploy.deploy(current_app._get_current_object())
