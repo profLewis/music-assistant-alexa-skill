@@ -141,3 +141,25 @@ def test_launch_opens_the_whole_control_panel_when_the_show_can(house, monkeypat
     assert d["data"]["code"] == "CODE1" and d["data"]["page"] == "home" and d["data"]["state"]
     monkeypatch.setattr(signin, "_opts", lambda: {})   # no password set: the drawn screens instead
     assert run("LaunchRequest", iface=iface)["response"]["directives"][0]["type"] == "Alexa.Presentation.APL.RenderDocument"
+
+
+def test_widget_packages_and_install_message(house, monkeypatch):
+    from myhouse import widgets
+    files = widgets.packages(["en-GB"])
+    for wid in ("CentralControl", "PeachBanana"):
+        m = json.loads(files[f"skill-package/dataStorePackages/{wid}/manifest.json"])
+        assert m["manifest"]["id"] == wid and m["publishingInformation"]["locales"]["en-GB"][0]["targetViewport"] == "WIDGET_M"
+        doc = json.loads(files[f"skill-package/dataStorePackages/{wid}/documents/document.json"])
+        assert doc["extensions"][0]["uri"] == "alexaext:datastore:10" and "openPage" in json.dumps(doc)
+    pushed = []
+    monkeypatch.setattr(widgets, "push", lambda uid, force=False: pushed.append((uid, force)))
+    saved = {}
+    monkeypatch.setattr(deploy, "_load", lambda: dict(saved))
+    monkeypatch.setattr(deploy, "_save", lambda d: saved.update(d))
+    ev = build_event("Alexa.DataStore.PackageManager.UsagesInstalled", None,
+                     {"payload": {"packageId": "CentralControl", "packageVersion": "1.0.0", "usages": [{"instanceId": "x", "location": "FAVORITE"}]}}, True, SHOW, "en-GB")
+    run_ev = handlers.build().invoke(_env(ev), None)
+    assert saved.get("user_id") == "golden-user" and pushed == [("golden-user", True)]
+    # a widget tap opens the page (drawn screens when no web app)
+    r = run("Alexa.Presentation.APL.UserEvent", extra={"arguments": ["openPage", "hsettings"], "source": {}, "token": "x"})["response"]
+    assert "Heating settings" in json.dumps(r, ensure_ascii=False)
