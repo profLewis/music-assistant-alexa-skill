@@ -53,12 +53,21 @@ def music_interfaces(m):
 
 
 def music_endpoint(m):
-    """The music skill's endpoint as Amazon has it (the one that's known to work): its certificate type is copied."""
+    """The music skill's endpoint as Amazon has it (the one that's known to work) - INCLUDING its per-region endpoints:
+    the UK Echoes use the EU one, which is set to Wildcard (Cloudflare's certificate). Copying only the default
+    ("Trusted") made Amazon refuse to call Cat Ballou at all ("unable to reach the requested skill")."""
     sid = m.state.get("skill_id")
     if not sid:
         return {}
     body = m.api("GET", f"/v1/skills/{quote(sid, safe='')}/stages/development/manifest").json()
-    return ((body.get("manifest") or {}).get("apis") or {}).get("custom", {}).get("endpoint") or {}
+    custom = ((body.get("manifest") or {}).get("apis") or {}).get("custom", {})
+    ep = dict(custom.get("endpoint") or {})
+    regions = custom.get("regions") or {}
+    eu = (regions.get("EU") or {}).get("endpoint") or {}
+    if eu.get("sslCertificateType"):
+        ep["sslCertificateType"] = eu["sslCertificateType"]
+    ep["regions"] = regions
+    return ep
 
 
 def amazon_manifests():
@@ -81,7 +90,7 @@ def amazon_manifests():
     return out
 
 
-def manifest(endpoint, cert=None, viewports=None):
+def manifest(endpoint, cert=None, viewports=None, regions=None):
     loc = {
         "name": "Cat Ballou",
         "summary": "The house on your Echo Show: lights, heating and music.",
@@ -98,7 +107,8 @@ def manifest(endpoint, cert=None, viewports=None):
         "publishingInformation": {"locales": {l: loc for l in LOCALES}, "isAvailableWorldwide": False,
                                   "distributionCountries": ["GB"], "category": "SMART_HOME"},
         "apis": {"custom": {"endpoint": {"uri": endpoint, "sslCertificateType": cert or get_setting("SKILL_CERTIFICATE_TYPE", "Wildcard")},
-                            "interfaces": [{"type": "ALEXA_PRESENTATION_APL", "supportedViewports": viewports or VIEWPORTS}]}},
+                            "interfaces": [{"type": "ALEXA_PRESENTATION_APL", "supportedViewports": viewports or VIEWPORTS}],
+                            **({"regions": regions} if regions else {})}},
         "privacyAndCompliance": {"allowsPurchases": False, "usesPersonalInfo": False, "isChildDirected": False,
                                  "isExportCompliant": True, "containsAds": False},
         "permissions": [],
@@ -147,7 +157,7 @@ def deploy(app):
                 endpoint = ep.get("uri") or https_url(get_setting("SKILL_HOSTNAME", "").strip(), "Skill endpoint")   # the SAME address as the music skill (Amazon reaches it; /myhouse it never called) - requests are told apart by skill id
                 d = _load(); sid = d.get("skill_id")
                 vp = next((i.get("supportedViewports") for i in music_interfaces(m) if i.get("type") == "ALEXA_PRESENTATION_APL" and i.get("supportedViewports")), None)
-                body = manifest(endpoint, ep.get("sslCertificateType"), vp)
+                body = manifest(endpoint, ep.get("sslCertificateType") or "Wildcard", vp, ep.get("regions"))
                 if not sid:
                     _say("creating", "Creating the MyHouse skill at Amazon…")
                     sid = m.api("POST", "/v1/skills", json={"vendorId": vendor, **body}).json()["skillId"]
