@@ -36,12 +36,12 @@ def skill_id():
 
 def manifest(endpoint):
     loc = {
-        "name": "MyHouse",
+        "name": "Cat Ballou",
         "summary": "The house on your Echo Show: lights, heating and music.",
-        "description": "MyHouse shows the house on an Echo Show - rooms, lights, heating and music - with touch "
-                       "controls, and answers by voice. Say \"Alexa, open my house\".",
-        "examplePhrases": ["Alexa, open my house", "Alexa, ask my house to show the heating",
-                           "Alexa, ask my house to turn on the kitchen lights"],
+        "description": "Cat Ballou shows the house on an Echo Show - rooms, lights, heating and music - with touch "
+                       "controls, and answers by voice. Say \"Alexa, open Cat Ballou\".",
+        "examplePhrases": ["Alexa, open Cat Ballou", "Alexa, ask Cat Ballou to show the heating",
+                           "Alexa, ask Cat Ballou to turn on the kitchen lights"],
         "keywords": ["home", "lights", "heating"],
         "smallIconUri": "https://raw.githubusercontent.com/profLewis/music-assistant-alexa-skill/proflewis/assets/icons/myhouse_108.png",
         "largeIconUri": "https://raw.githubusercontent.com/profLewis/music-assistant-alexa-skill/proflewis/assets/icons/myhouse_512.png",
@@ -116,7 +116,7 @@ def deploy(app):
                     _wait(m, path, "interactionModel", loc)
                 _say("enabling", "Enabling MyHouse for testing on your account…")
                 m.api("PUT", f"{path}/stages/development/enablement")
-                _say("done", "MyHouse is ready: say \"Alexa, open my house\".")
+                _say("done", "Cat Ballou is ready: say \"Alexa, open Cat Ballou\".")
         except Exception as e:  # noqa: BLE001 - reported on the status endpoint
             _say("failed", str(e)[:500])
         finally:

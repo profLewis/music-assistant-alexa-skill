@@ -1,4 +1,4 @@
-"""MyHouse - the house on the Echo Show ("Alexa, open my house"): its own Alexa skill, served by this add-on at
+"""MyHouse - the house on the Echo Show ("Alexa, open Cat Ballou"): its own Alexa skill, served by this add-on at
 POST /myhouse (Amazon-signed requests only), created at Amazon by POST /myhouse/deploy (app credentials)."""
 
 from flask import Blueprint, current_app, jsonify
