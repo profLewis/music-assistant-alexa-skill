@@ -996,6 +996,10 @@ class ResponseLogger(AbstractResponseInterceptor):
 # Request Handlers
 sb.add_request_handler(CheckAudioInterfaceHandler())
 sb.add_request_handler(SkillEventHandler())
+from . import screen_app   # (fork: the control panel inside the music skill on an Echo Show)
+sb.add_request_handler(screen_app.ScreenAppEnded())
+sb.add_request_handler(screen_app.ScreenAppLaunch())
+sb.add_request_handler(screen_app.ScreenAppMessage())
 sb.add_request_handler(LaunchRequestOrPlayAudioHandler())
 sb.add_request_handler(PlayCommandHandler())
 sb.add_request_handler(HelpIntentHandler())
@@ -1024,6 +1028,7 @@ sb.add_global_request_interceptor(APLSupportRequestInterceptor())
 sb.add_global_request_interceptor(RequestLogger())
 sb.add_global_request_interceptor(LocalizationInterceptor())
 sb.add_global_response_interceptor(ResponseLogger())
+sb.add_global_response_interceptor(screen_app.KeepScreenOpen())
 
 # AWS Lambda handler
 lambda_handler = sb.lambda_handler()

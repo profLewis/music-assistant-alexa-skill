@@ -194,6 +194,23 @@ class Touch(AbstractRequestHandler):
         return _reply(handler_input)
 
 
+class PageMessage(AbstractRequestHandler):
+    """Messages from the control panel's front door. "stop-music": opening Peach Banana quits any music playing on this
+    Echo (Music Assistant paused for its player - the music is the music skill's, so Peach Banana can't stop it itself)."""
+    def can_handle(self, handler_input):
+        return is_request_type("Alexa.Presentation.HTML.Message")(handler_input)
+
+    def handle(self, handler_input):
+        msg = getattr(handler_input.request_envelope.request, "message", None) or {}
+        if isinstance(msg, dict) and msg.get("type") == "stop-music":
+            try:
+                from skill import lambda_function
+                lambda_function._sync_to_ma_unless_echo(handler_input, "pause")
+            except Exception:
+                log.exception("Peach Banana: pausing the music failed")
+        return handler_input.response_builder.response
+
+
 class Help(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_intent_name("AMAZON.HelpIntent")(handler_input) or is_intent_name("AMAZON.FallbackIntent")(handler_input)
@@ -230,7 +247,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Command(), Touch(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Command(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()
