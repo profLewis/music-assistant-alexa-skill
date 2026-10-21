@@ -101,3 +101,17 @@ def test_voice_model_rooms_and_invocation():
     assert m["invocationName"] == "cat ballou"
     rooms = next(t for t in m["types"] if t["name"] == "ROOM")["values"]
     assert {"name": {"value": "living room", "synonyms": ["lounge", "sitting room"]}} in rooms
+
+
+def test_root_endpoint_hands_cat_ballou_requests_to_it(client, house, monkeypatch):
+    # Cat Ballou shares the music skill's address: a request with its skill id goes to the house skill
+    from app import app as flask_app
+    monkeypatch.setitem(flask_app.config, "ASK_VERIFY_REQUEST_SIGNATURE", False)
+    monkeypatch.setitem(flask_app.config, "ASK_VERIFY_REQUEST_TIMESTAMP", False)
+    seen = []
+    adapter = flask_app.extensions["myhouse_adapter"]
+    monkeypatch.setattr(adapter, "dispatch_request", lambda: seen.append(1) or "{}")
+    ev = build_event("LaunchRequest", None, {}, True, SHOW, "en-GB")
+    ev["context"]["System"]["application"]["applicationId"] = "golden-skill"
+    client.post("/", json=ev)
+    assert seen == [1]

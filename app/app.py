@@ -372,6 +372,18 @@ def invoke_skill():
                 # fallthrough to normal dispatch
     except Exception:
         pass
+    # fork: Cat Ballou (the house skill) shares this endpoint - its requests carry its own skill id
+    try:
+        from myhouse import deploy as _mh
+        sid = _mh.skill_id()
+        if sid and sid.encode() in (request.get_data() or b""):
+            body = request.get_json(silent=True) or {}
+            app_id = (((body.get("context") or {}).get("System") or {}).get("application") or {}).get("applicationId") \
+                or ((body.get("session") or {}).get("application") or {}).get("applicationId")
+            if app_id == sid:
+                return app.extensions["myhouse_adapter"].dispatch_request()
+    except Exception:
+        app.logger.exception("Cat Ballou routing failed")
     return skill_adapter.dispatch_request()
 
 
