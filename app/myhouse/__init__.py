@@ -1,4 +1,4 @@
-"""MyHouse - the house on the Echo Show ("Alexa, open Cat Ballou"): its own Alexa skill, served by this add-on at
+"""MyHouse - the house on the Echo Show ("Alexa, open Apple Banana"): its own Alexa skill, served by this add-on at
 POST /myhouse (Amazon-signed requests only), created at Amazon by POST /myhouse/deploy (app credentials)."""
 
 from flask import Blueprint, current_app, jsonify
@@ -16,7 +16,7 @@ def register(app):
     def invoke():
         return adapter.dispatch_request()
 
-    app.extensions["myhouse_adapter"] = adapter   # (the root endpoint hands Cat Ballou's requests to it - see app.invoke_skill)
+    app.extensions["myhouse_adapter"] = adapter   # (the root endpoint hands Apple Banana's requests to it - see app.invoke_skill)
 
     @bp.route("/myhouse/deploy", methods=["POST"])
     def start_deploy():
@@ -31,7 +31,7 @@ def register(app):
     def simulate():
         from flask import request
         body = request.get_json(silent=True) or {}
-        return jsonify(deploy.simulate(body.get("text", "open cat ballou"), body.get("locale", "en-GB")))
+        return jsonify(deploy.simulate(body.get("text", "open apple banana"), body.get("locale", "en-GB")))
 
     @bp.route("/myhouse/status", methods=["GET"])
     def status():
