@@ -2,6 +2,7 @@
 redraw after each tap / every 30 s. Without a screen: just say it."""
 
 import logging
+import time
 
 from ask_sdk_core.dispatch_components import AbstractExceptionHandler, AbstractRequestHandler
 from ask_sdk_core.skill_builder import SkillBuilder
@@ -47,7 +48,7 @@ def _open_dashboard(handler_input, page="home"):
         return None
     base = signin._cfg()["url"]
     rb = handler_input.response_builder
-    rb.add_directive(StartDirective(data=data, request=StartRequest(uri=f"{base}/local/catballou.html", method=StartRequestMethod.GET),
+    rb.add_directive(StartDirective(data=data, request=StartRequest(uri=f"{base}/local/catballou.html?v={int(time.time())}", method=StartRequestMethod.GET),
                                     configuration=Configuration(timeout_in_seconds=1800)))
     return rb.response
 
