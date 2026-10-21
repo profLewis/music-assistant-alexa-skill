@@ -23,7 +23,7 @@ def test_launch_opens_the_control_panel_and_play_keeps_it_open(client, monkeypat
     # MA's play arrives in the same session: it plays, and the page stays up
     client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
     r = handlers.lambda_handler(build_event("IntentRequest", "PlayAudio", {}, False, HTML, "en-GB"), None)["response"]
-    assert "AudioPlayer.Play" in [d["type"] for d in r["directives"]] and not r.get("shouldEndSession")
+    assert not r.get("directives") and not r.get("shouldEndSession")   # (the page plays it - Alexa's player isn't used)
     # the page's first message quits the music
     r = handlers.lambda_handler(build_event("Alexa.Presentation.HTML.Message", None, {"message": {"type": "stop-music"}}, False, HTML, "en-GB"), None)["response"]
     assert [d["type"] for d in r["directives"]] == ["AudioPlayer.Stop"] and not r.get("shouldEndSession")
@@ -48,6 +48,8 @@ def test_music_played_to_a_show_opens_the_music_page_which_starts_it(client, mon
     r = handlers.lambda_handler(build_event("IntentRequest", "PlayAudio", {}, True, HTML, "en-GB"), None)["response"]
     d = r["directives"]
     assert [x["type"] for x in d] == ["Alexa.Presentation.HTML.Start"] and d[0]["data"]["page"] == "music" and d[0]["data"]["play"] == 1
+    assert d[0]["data"]["stream"].endswith("/The%20moon.mp3") and d[0]["data"]["player"] == "The moon"
     assert not r.get("shouldEndSession")
-    r = handlers.lambda_handler(build_event("Alexa.Presentation.HTML.Message", None, {"message": {"type": "play"}}, False, HTML, "en-GB"), None)["response"]
-    assert [x["type"] for x in r["directives"]] == ["AudioPlayer.Play"] and not r.get("shouldEndSession")
+    # while it's open, a pause (MA's, by voice) reaches MA but sends Alexa's player nothing, and keeps the panel open
+    r = handlers.lambda_handler(build_event("IntentRequest", "AMAZON.PauseIntent", {}, False, HTML, "en-GB"), None)["response"]
+    assert not r.get("directives") and not r.get("shouldEndSession")

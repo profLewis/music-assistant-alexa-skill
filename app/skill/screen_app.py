@@ -7,8 +7,11 @@ screen from Peach Banana every time a song started.
   The page's first message {"type": "stop-music"} → AudioPlayer.Stop (and Music Assistant paused): opening it quits
   any music playing.
   MUSIC PLAYED TO A SHOW (MA's "ask music assistant to play audio", a new session) → the control panel opens on its
-  Music page instead of Alexa's own player, and ITS first message {"type": "play"} starts the stream - so the music is
-  played from inside the open control panel, by the same skill.
+  Music page instead of Alexa's own player, with the stream: THE PAGE PLAYS IT ITSELF (an audio element), following
+  Music Assistant's play / pause. (Tried first: the page asking the skill for AudioPlayer.Play - Alexa then froze the
+  web app the moment its own player started, so the panel stopped updating.) While the panel is open on a device no
+  AudioPlayer directive is sent there (it would take over again) - pause / resume / next reach Music Assistant, whose
+  state the page follows.
   While it's open on a device, nothing the music skill answers there ends the session (MA's own play / pause reach this
   skill as voice requests) - unless the request is a user's Stop / Cancel. What happens is logged (session new / same),
   as this is a test of whether the Show keeps the page up while the same skill plays.
@@ -73,13 +76,34 @@ class ScreenAppPlay(AbstractRequestHandler):
 
     def handle(self, handler_input):
         from myhouse.handlers import _open_dashboard
-        r = _open_dashboard(handler_input, "music", {"play": 1})
+        url, player = stream(handler_input)
+        r = _open_dashboard(handler_input, "music", {"play": 1, "stream": url, "player": player}) if url else None
         if r is None:   # (no sign-in set up: Alexa's own player, as before)
             from . import lambda_function
             return lambda_function.LaunchRequestOrPlayAudioHandler().handle(handler_input)
         OPEN[_dev(handler_input)] = _sid(handler_input)
         log.info("Screen app: music for a Show - opening the control panel's Music page (session %s)", (_sid(handler_input) or "")[-8:])
         return r
+
+
+def stream(handler_input):
+    """(the public stream URL Music Assistant pushed for this Echo - refreshed if it has gone stale -, its MA player name)"""
+    from urllib.parse import unquote
+    from . import lambda_function as lf, util
+    url, _a = lf._get_stream_url(None)
+    if url and not util.skip_url_validation() and not util.validate_stream_url(url):
+        from . import device_mapping
+        dev = _dev(handler_input); pid = device_mapping.get_player_for_device(dev)
+        url = (lf._refresh_stream_url(dev, pid) if pid else None) or url
+    if not url:
+        return None, None
+    try:
+        url = util.replace_ip_in_url(url, util.get_ma_hostname(raise_on_http_scheme=True))
+    except Exception:
+        log.exception("Screen app: no public music address")
+        return None, None
+    parts = url.split("/flow/", 1)[-1].split("/")
+    return url, (unquote(parts[1]) if len(parts) > 2 else None)
 
 
 class ScreenAppMessage(AbstractRequestHandler):
@@ -91,10 +115,6 @@ class ScreenAppMessage(AbstractRequestHandler):
         kind = msg.get("type") if isinstance(msg, dict) else None
         log.info("Screen app: message %s (session %s)", kind, (_sid(handler_input) or "")[-8:])
         rb = handler_input.response_builder
-        if kind == "play":   # (the stream Music Assistant pushed; Alexa's AudioPlayer only - no APL page over the panel)
-            from . import lambda_function
-            handler_input.attributes_manager.request_attributes["supports_apl"] = False
-            return lambda_function.LaunchRequestOrPlayAudioHandler().handle(handler_input)
         if kind == "stop-music":
             rb.add_directive(StopDirective())
             try:
@@ -128,9 +148,12 @@ class KeepScreenOpen(AbstractResponseInterceptor):
         same = OPEN[dev] == _sid(handler_input)
         name = getattr(getattr(req, "intent", None), "name", None) or req.object_type
         log.info("Screen app: %s while open - %s session", name, "SAME" if same else "a NEW" if _sid(handler_input) else "no")
-        if not same:
-            return
-        if is_intent_name("AMAZON.StopIntent")(handler_input) or is_intent_name("AMAZON.CancelIntent")(handler_input):
+        if is_request_type("Alexa.Presentation.HTML.Message")(handler_input):
+            pass   # (its own answer: stop-music's AudioPlayer.Stop stops Alexa's player from before the panel opened)
+        elif response.directives:   # Alexa's audio player would take the screen (and freeze the panel): the page plays
+            response.directives = [d for d in response.directives if not (getattr(d, "object_type", "") or "").startswith("AudioPlayer.")
+                                   and not (getattr(d, "object_type", "") or "").startswith("Alexa.Presentation.APL")] or None
+        if same and (is_intent_name("AMAZON.StopIntent")(handler_input) or is_intent_name("AMAZON.CancelIntent")(handler_input)):
             OPEN.pop(dev, None)
             return
         if response.should_end_session:
