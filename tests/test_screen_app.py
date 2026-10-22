@@ -83,3 +83,17 @@ def test_a_pause_long_after_the_panel_closed_does_not_reopen_it(client, monkeypa
     screen_app.ENDED["echo-1"] -= 60   # (closed a minute ago: a quit, not MA's pause)
     r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.PauseIntent", {}, True, "S.later"), None)["response"]
     assert "Alexa.Presentation.HTML.Start" not in [x["type"] for x in (r.get("directives") or [])]
+
+
+def test_the_page_asking_to_be_opened_again_gets_a_fresh_start_into_its_screensaver(client, monkeypatch):
+    # (Alexa closes a web app after 30 minutes without a touch: the panel starts itself again a little before that)
+    _signin(monkeypatch); screen_app.OPEN.clear()
+    handlers.lambda_handler(build_event("LaunchRequest", None, {}, True, HTML, "en-GB"), None)
+    r = handlers.lambda_handler(build_event("Alexa.Presentation.HTML.Message", None, {"message": {"type": "restart", "page": "home", "saver": True, "resume": True}}, False, HTML, "en-GB"), None)["response"]
+    d = r["directives"]
+    assert [x["type"] for x in d] == ["Alexa.Presentation.HTML.Start"] and not r.get("shouldEndSession")
+    assert d[0]["data"]["page"] == "home" and d[0]["data"]["saver"] == 1 and d[0]["data"]["resume"] == 1
+    assert d[0]["configuration"]["timeoutInSeconds"] == 1800
+    # a page name that isn't one goes Home
+    r = handlers.lambda_handler(build_event("Alexa.Presentation.HTML.Message", None, {"message": {"type": "restart", "page": "../x"}}, False, HTML, "en-GB"), None)["response"]
+    assert r["directives"][0]["data"]["page"] == "home" and "saver" not in r["directives"][0]["data"]

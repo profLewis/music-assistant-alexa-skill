@@ -146,6 +146,12 @@ class ScreenAppMessage(AbstractRequestHandler):
         kind = msg.get("type") if isinstance(msg, dict) else None
         log.info("Screen app: message %s (session %s)", kind, (_sid(handler_input) or "")[-8:])
         rb = handler_input.response_builder
+        if kind == "restart":   # (opened again before Alexa's 30-minute idle limit closes it - myhouse.handlers.restart)
+            from myhouse.handlers import restart
+            r = restart(handler_input, msg)
+            if r is not None:
+                OPEN[_dev(handler_input)] = _sid(handler_input)
+                return r
         if kind == "stop-music":
             rb.add_directive(StopDirective())
             try:
