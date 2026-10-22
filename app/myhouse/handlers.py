@@ -194,6 +194,17 @@ class Touch(AbstractRequestHandler):
         return _reply(handler_input)
 
 
+def restart(handler_input, msg):
+    """The page asks to be OPENED AGAIN ({"type": "restart", "page", "saver", "resume"}): Alexa closes a web app after 30
+    minutes without a touch (the longest it allows) and the Show then goes to its own home screen and slideshow, so the
+    panel - showing its screensaver, the house movie - starts itself afresh a little before that. saver: straight back
+    into the screensaver; resume: the music that was playing on the screen's own speaker carries on."""
+    extra = {k: 1 for k in ("saver", "resume") if msg.get(k)}
+    page = msg.get("page") if isinstance(msg.get("page"), str) and msg.get("page").isidentifier() else "home"
+    log.info("Peach Banana: the page asked to be opened again (%s %s)", page, extra)
+    return _open_dashboard(handler_input, page, extra)
+
+
 class PageMessage(AbstractRequestHandler):
     """Messages from the control panel's front door. "stop-music": opening Peach Banana quits any music playing on this
     Echo (Music Assistant paused for its player - the music is the music skill's, so Peach Banana can't stop it itself)."""
@@ -202,6 +213,10 @@ class PageMessage(AbstractRequestHandler):
 
     def handle(self, handler_input):
         msg = getattr(handler_input.request_envelope.request, "message", None) or {}
+        if isinstance(msg, dict) and msg.get("type") == "restart":
+            r = restart(handler_input, msg)
+            if r is not None:
+                return r
         if isinstance(msg, dict) and msg.get("type") == "stop-music":
             try:
                 from skill import lambda_function
