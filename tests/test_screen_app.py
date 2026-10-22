@@ -53,3 +53,33 @@ def test_music_played_to_a_show_opens_the_music_page_which_starts_it(client, mon
     # while it's open, a pause (MA's, by voice) reaches MA but sends Alexa's player nothing, and keeps the panel open
     r = handlers.lambda_handler(build_event("IntentRequest", "AMAZON.PauseIntent", {}, False, HTML, "en-GB"), None)["response"]
     assert not r.get("directives") and not r.get("shouldEndSession")
+
+
+def _ev(req_type, intent, extra, new, sid):
+    e = build_event(req_type, intent, extra, new, HTML, "en-GB"); e["session"]["sessionId"] = sid; return e
+
+
+def test_mas_pause_ending_the_panel_opens_it_again_paused(client, monkeypatch):
+    _signin(monkeypatch); screen_app.OPEN.clear(); screen_app.ENDED.clear()
+    client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
+    handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.panel"), None)
+    # MA's "ask music assistant to pause": Alexa ends the panel's session, then the pause comes in a new one
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.panel"), None)
+    r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.PauseIntent", {}, True, "S.pause"), None)["response"]
+    d = r["directives"]
+    assert [x["type"] for x in d] == ["Alexa.Presentation.HTML.Start"] and d[0]["data"]["page"] == "music" and d[0]["data"]["paused"] == 1
+    assert "stream" not in d[0]["data"] and not r.get("shouldEndSession") and screen_app.OPEN["echo-1"] == "S.pause"
+    # MA's stop the same way
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.pause"), None)
+    r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.StopIntent", {}, True, "S.stop"), None)["response"]
+    assert [x["type"] for x in r["directives"]] == ["Alexa.Presentation.HTML.Start"] and not r.get("shouldEndSession")
+
+
+def test_a_pause_long_after_the_panel_closed_does_not_reopen_it(client, monkeypatch):
+    _signin(monkeypatch); screen_app.OPEN.clear(); screen_app.ENDED.clear()
+    client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
+    handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.panel"), None)
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.panel"), None)
+    screen_app.ENDED["echo-1"] -= 60   # (closed a minute ago: a quit, not MA's pause)
+    r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.PauseIntent", {}, True, "S.later"), None)["response"]
+    assert "Alexa.Presentation.HTML.Start" not in [x["type"] for x in (r.get("directives") or [])]

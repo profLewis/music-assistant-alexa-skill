@@ -1000,6 +1000,7 @@ from . import screen_app   # (fork: the control panel inside the music skill on 
 sb.add_request_handler(screen_app.ScreenAppEnded())
 sb.add_request_handler(screen_app.ScreenAppLaunch())
 sb.add_request_handler(screen_app.ScreenAppPlay())
+sb.add_request_handler(screen_app.ScreenAppReopen())
 sb.add_request_handler(screen_app.ScreenAppMessage())
 sb.add_request_handler(LaunchRequestOrPlayAudioHandler())
 sb.add_request_handler(PlayCommandHandler())
