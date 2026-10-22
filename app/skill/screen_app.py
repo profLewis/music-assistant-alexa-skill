@@ -16,9 +16,16 @@ screen from Peach Banana every time a song started.
   skill as voice requests) - unless the request is a user's Stop / Cancel. What happens is logged (session new / same),
   as this is a test of whether the Show keeps the page up while the same skill plays.
 
+  MUSIC ASSISTANT'S PAUSE / STOP take the screen: MA sends them to the Echo as voice requests ("ask music assistant to
+  pause"), and Alexa ends the panel's session for each - the Show then fell back to Alexa's home screen. A pause or stop
+  arriving within a few seconds of the panel's session ending is that: the panel opens again at once on its Music page,
+  PAUSED (data.paused - the page doesn't send its stop-music, which would pause MA again and loop). A quit (Alexa, exit /
+  another skill) has no pause behind it, so the panel stays closed.
+
 MUSIC_SCREEN_APP=false turns it off (the launch then plays the latest stream, as upstream)."""
 
 import logging
+import time
 
 from ask_sdk_core.dispatch_components import AbstractRequestHandler, AbstractResponseInterceptor
 from ask_sdk_core.utils import is_intent_name, is_request_type
@@ -28,6 +35,8 @@ from app_settings import get_setting
 
 log = logging.getLogger(__name__)
 OPEN = {}   # device id → the session the control panel runs in
+ENDED = {}  # device id → when Alexa last ended the panel's session (time.time())
+REOPEN_S = 5   # a pause / stop this soon after the panel's session ended came from that same MA command
 
 
 def enabled():
@@ -83,6 +92,28 @@ class ScreenAppPlay(AbstractRequestHandler):
             return lambda_function.LaunchRequestOrPlayAudioHandler().handle(handler_input)
         OPEN[_dev(handler_input)] = _sid(handler_input)
         log.info("Screen app: music for a Show - opening the control panel's Music page (session %s)", (_sid(handler_input) or "")[-8:])
+        return r
+
+
+class ScreenAppReopen(AbstractRequestHandler):
+    """MA's pause / stop just ended the panel's session: open it again, paused, on the Music page."""
+    def can_handle(self, handler_input):
+        dev = _dev(handler_input)
+        return (enabled() and _html(handler_input) and dev in OPEN and OPEN[dev] != _sid(handler_input)
+                and (is_intent_name("AMAZON.PauseIntent")(handler_input) or is_intent_name("AMAZON.StopIntent")(handler_input))
+                and time.time() - ENDED.get(dev, 0) < REOPEN_S)
+
+    def handle(self, handler_input):
+        from myhouse.handlers import _open_dashboard
+        try:
+            _url, player = stream(handler_input)
+        except Exception:
+            player = None
+        r = _open_dashboard(handler_input, "music", {"paused": 1, "player": player})
+        if r is None:
+            return handler_input.response_builder.response
+        OPEN[_dev(handler_input)] = _sid(handler_input); ENDED.pop(_dev(handler_input), None)
+        log.info("Screen app: MA's pause took the screen - the control panel opened again, paused (session %s)", (_sid(handler_input) or "")[-8:])
         return r
 
 
@@ -147,13 +178,16 @@ class KeepScreenOpen(AbstractResponseInterceptor):
         req = handler_input.request_envelope.request
         same = OPEN[dev] == _sid(handler_input)
         name = getattr(getattr(req, "intent", None), "name", None) or req.object_type
+        if same and is_request_type("SessionEndedRequest")(handler_input):
+            ENDED[dev] = time.time()   # (MA's next voice request - a pause - may be what ended it: see ScreenAppReopen)
         log.info("Screen app: %s while open - %s session", name, "SAME" if same else "a NEW" if _sid(handler_input) else "no")
         if is_request_type("Alexa.Presentation.HTML.Message")(handler_input):
             pass   # (its own answer: stop-music's AudioPlayer.Stop stops Alexa's player from before the panel opened)
         elif response.directives:   # Alexa's audio player would take the screen (and freeze the panel): the page plays
             response.directives = [d for d in response.directives if not (getattr(d, "object_type", "") or "").startswith("AudioPlayer.")
                                    and not (getattr(d, "object_type", "") or "").startswith("Alexa.Presentation.APL")] or None
-        if same and (is_intent_name("AMAZON.StopIntent")(handler_input) or is_intent_name("AMAZON.CancelIntent")(handler_input)):
+        if (same and (is_intent_name("AMAZON.StopIntent")(handler_input) or is_intent_name("AMAZON.CancelIntent")(handler_input))
+                and not any((getattr(d, "object_type", "") or "") == "Alexa.Presentation.HTML.Start" for d in (response.directives or []))):
             OPEN.pop(dev, None)
             return
         if response.should_end_session:
