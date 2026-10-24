@@ -28,6 +28,19 @@ def interaction_model():
          "samples": [f"what's the temperature in the {R}", f"how warm is the {R}", "how warm is the house", "what's the temperature"]},
         {"name": "MusicIntent", "slots": [{"name": "act", "type": "MUSIC_ACTION"}],
          "samples": ["{act} the music", "{act} music", "music {act}", "{act} track", "{act}"]},
+        # (ALEXA'S OWN JOBS while the panel is open: the open session hears everything said, so these are caught here and
+        # handed back to Alexa - handlers.HandOff - instead of being lost to Help; anything else unknown: FallbackIntent)
+        {"name": "AlarmIntent", "slots": [{"name": "time", "type": "AMAZON.TIME"}],
+         "samples": ["set an alarm for {time}", "set alarm for {time}", "set an alarm at {time}", "set my alarm for {time}",
+                     "wake me up at {time}", "wake me at {time}", "alarm for {time}", "set an alarm", "set alarm"]},
+        {"name": "TimerIntent", "slots": [{"name": "dur", "type": "AMAZON.DURATION"}],
+         "samples": ["set a timer for {dur}", "set timer for {dur}", "set a {dur} timer", "start a {dur} timer", "timer for {dur}",
+                     "start a timer for {dur}", "set a timer", "start a timer"]},
+        {"name": "AlarmOpIntent", "slots": [{"name": "op", "type": "ALERT_OP"}, {"name": "thing", "type": "ALERT_THING"}],
+         "samples": ["{op} the {thing}", "{op} my {thing}", "{op} all {thing}", "{op} all my {thing}", "{op} all the {thing}"]},
+        {"name": "TimerLeftIntent", "slots": [],
+         "samples": ["how long is left on the timer", "how long left on the timer", "how much time is left", "how long is left",
+                     "what time is the alarm", "what alarms do i have", "what timers do i have", "what time is it"]},
         {"name": "AMAZON.HelpIntent", "samples": []}, {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []}, {"name": "AMAZON.FallbackIntent", "samples": []},
         {"name": "AMAZON.NavigateHomeIntent", "samples": []},
@@ -38,6 +51,10 @@ def interaction_model():
                                     {"name": {"value": "lights", "synonyms": ["the lights", "lighting"]}},
                                     {"name": {"value": "heating", "synonyms": ["radiators", "the heating", "rads", "temperatures"]}},
                                     {"name": {"value": "music", "synonyms": ["the music", "the player", "what's playing"]}}]},
+        {"name": "ALERT_OP", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
+            ("cancel", ["delete", "remove", "turn off", "switch off"]), ("stop", ["silence"]), ("snooze", []), ("show", ["list"])]]},
+        {"name": "ALERT_THING", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
+            ("alarm", ["alarm clock"]), ("alarms", []), ("timer", []), ("timers", []), ("reminder", []), ("reminders", [])]]},
         {"name": "MUSIC_ACTION", "values": [{"name": {"value": v, "synonyms": s}} for v, s in [
             ("pause", ["stop", "hold"]), ("play", ["resume", "carry on", "continue"]), ("next", ["skip", "next song", "skip this"]),
             ("previous", ["back", "last song", "go back"]), ("louder", ["turn up", "volume up"]), ("quieter", ["turn down", "volume down"])]]},
