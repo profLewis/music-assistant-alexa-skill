@@ -140,6 +140,8 @@ class ShowPage(AbstractRequestHandler):
         return is_intent_name("ShowPageIntent")(handler_input)
 
     def handle(self, handler_input):
+        if _unmatched(handler_input, "page"):
+            return hand_off(handler_input)   # (not one of our pages - something for Alexa)
         p = (get_slot_value(handler_input, "page") or "home").lower()
         p = {"radiators": "heating", "rads": "heating", "the heating": "heating", "the lights": "lights", "the music": "music"}.get(p, p)
         dash = {"home": "home", "lights": "lights", "heating": "energy", "music": "music"}.get(p)
@@ -153,6 +155,8 @@ class Command(AbstractRequestHandler):
 
     def handle(self, handler_input):
         name = handler_input.request_envelope.request.intent.name
+        if name == "MusicIntent" and _unmatched(handler_input, "act"):
+            return hand_off(handler_input)   # ("{act}" on its own catches all sorts)
         rm = get_slot_value(handler_input, "room")
         try:
             say = {
@@ -226,9 +230,101 @@ class PageMessage(AbstractRequestHandler):
         return handler_input.response_builder.response
 
 
+def _resolved(handler_input, name):
+    """The slot's value when it matched one of ours (ER_SUCCESS_MATCH), else None - "{page}" and "{act}" on their own
+    otherwise catch whatever else is said ("set an alarm" heard as a page)."""
+    try:
+        slot = handler_input.request_envelope.request.intent.slots.get(name)
+        for r in (slot.resolutions.resolutions_per_authority or []):
+            if str(getattr(r.status.code, "value", r.status.code)) == "ER_SUCCESS_MATCH":
+                return r.values[0].value.name
+    except Exception:
+        pass
+    return None
+
+
+def _unmatched(handler_input, name):
+    """Said, but Alexa found it isn't one of the slot's values (ER_SUCCESS_NO_MATCH)."""
+    try:
+        slot = handler_input.request_envelope.request.intent.slots.get(name)
+        return bool(slot and slot.value) and any(
+            str(getattr(r.status.code, "value", r.status.code)) == "ER_SUCCESS_NO_MATCH"
+            for r in (slot.resolutions.resolutions_per_authority or []))
+    except Exception:
+        return False
+
+
+def _clock(t):
+    """AMAZON.TIME "07:30" -> "7:30 am"; "MO"/"EV"... and anything else as it came."""
+    try:
+        h, m = (int(x) for x in t.split(":")[:2])
+        return f"{h % 12 or 12}{':%02d' % m if m else ''} {'am' if h < 12 else 'pm'}"
+    except Exception:
+        return {"MO": "morning", "AF": "afternoon", "EV": "evening", "NI": "night"}.get(t, t)
+
+
+def _duration(d):
+    """AMAZON.DURATION "PT1H30M" -> "1 hour 30 minutes" (None if it isn't one)."""
+    import re
+    m = re.fullmatch(r"P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?", d or "")
+    if not m or not any(m.groups()):
+        return None
+    parts = [(int(v), u) for v, u in zip(m.groups(), ("day", "hour", "minute", "second")) if v]
+    return " ".join(f"{n} {u}{'s' if n != 1 else ''}" for n, u in parts)
+
+
+def hand_off(handler_input, text=None):
+    """LET ALEXA DO IT, THEN COME BACK (the user, 24 Oct: with the panel open, "set an alarm" went to Peach Banana and was
+    lost - "must be able to get back to my app after"). The session ends - the web app closes, so Alexa has the Echo
+    again - and Home Assistant's script.peach_banana_handoff then says the request to this Echo as a text command (when
+    it's one we understood: an alarm, a timer...) and opens Peach Banana again on the page it was on, once Alexa's
+    done (a few seconds; a minute when the user has to say it again themselves)."""
+    at = handler_input.attributes_manager.session_attributes
+    page = {"heating": "energy"}.get(at.get("page"), at.get("page")) or "home"
+    try:
+        dev = handler_input.request_envelope.context.system.device.device_id
+    except Exception:
+        dev = None
+    try:
+        from . import ha
+        ha.call("script", "turn_on", {"entity_id": "script.peach_banana_handoff",
+                                      "variables": {"text": text or "", "page": page, "alexa_device": dev or "",
+                                                    "back_after": 12 if text else 60}})
+    except Exception:
+        log.exception("Peach Banana: handing over to Alexa failed")
+    log.info("Peach Banana: handing over to Alexa (%s)", text or "said again by the user")
+    rb = handler_input.response_builder
+    if not text:
+        rb.speak("Over to Alexa - say that again. The panel comes back in a minute, or say: Alexa, open Peach Banana.")
+    return rb.set_should_end_session(True).response
+
+
+class HandOff(AbstractRequestHandler):
+    """Alexa's own jobs said while the panel is open (alarms, timers...) and anything else Peach Banana doesn't know."""
+    NAMES = ("AlarmIntent", "TimerIntent", "AlarmOpIntent", "TimerLeftIntent", "AMAZON.FallbackIntent")
+
+    def can_handle(self, handler_input):
+        return any(is_intent_name(n)(handler_input) for n in self.NAMES)
+
+    def handle(self, handler_input):
+        name = handler_input.request_envelope.request.intent.name
+        text = None
+        if name == "AlarmIntent":
+            t = get_slot_value(handler_input, "time")
+            text = f"set an alarm for {_clock(t)}" if t else None
+        elif name == "TimerIntent":
+            d = _duration(get_slot_value(handler_input, "dur"))
+            text = f"set a timer for {d}" if d else None
+        elif name == "AlarmOpIntent":
+            op, thing = _resolved(handler_input, "op"), _resolved(handler_input, "thing")
+            text = f"{op} my {thing}" if op and thing else None
+        # (TimerLeftIntent / Fallback: the words said aren't sent to a skill - the user says it again to Alexa)
+        return hand_off(handler_input, text)
+
+
 class Help(AbstractRequestHandler):
     def can_handle(self, handler_input):
-        return is_intent_name("AMAZON.HelpIntent")(handler_input) or is_intent_name("AMAZON.FallbackIntent")(handler_input)
+        return is_intent_name("AMAZON.HelpIntent")(handler_input)
 
     def handle(self, handler_input):
         return _reply(handler_input, "Try: show the heating, turn on the kitchen lights, boost the living room, "
@@ -262,7 +358,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Command(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Command(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()

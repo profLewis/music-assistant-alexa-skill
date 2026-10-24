@@ -163,3 +163,41 @@ def test_widget_packages_and_install_message(house, monkeypatch):
     # a widget tap opens the page (drawn screens when no web app)
     r = run("Alexa.Presentation.APL.UserEvent", extra={"arguments": ["openPage", "hsettings"], "source": {}, "token": "x"})["response"]
     assert "Heating settings" in json.dumps(r, ensure_ascii=False)
+
+
+def _handoff(calls):
+    return [c[2]["variables"] for c in calls if c[:2] == ("script", "turn_on") and c[2]["entity_id"] == "script.peach_banana_handoff"]
+
+
+def test_alarm_said_with_the_panel_open_goes_to_alexa_and_comes_back(house):
+    r = run("IntentRequest", "AlarmIntent", slots={"time": "07:30"})["response"]
+    assert r["shouldEndSession"] is True   # (the web app closes - Alexa has the Echo)
+    v = _handoff(house)
+    assert v and v[0]["text"] == "set an alarm for 7:30 am" and v[0]["back_after"] == 12
+
+
+def test_timer_duration_in_words(house):
+    run("IntentRequest", "TimerIntent", slots={"dur": "PT1H5M"})
+    assert _handoff(house)[0]["text"] == "set a timer for 1 hour 5 minutes"
+    assert handlers._duration("PT30S") == "30 seconds" and handlers._duration("nonsense") is None
+    assert handlers._clock("19:00") == "7 pm" and handlers._clock("00:15") == "12:15 am"
+
+
+def test_fallback_hands_over_and_asks_to_say_it_again(house):
+    r = run("IntentRequest", "AMAZON.FallbackIntent")["response"]
+    assert r["shouldEndSession"] is True and "say that again" in r["outputSpeech"]["ssml"]
+    v = _handoff(house)
+    assert v[0]["text"] == "" and v[0]["back_after"] == 60
+
+
+def test_unmatched_page_is_not_ours(house):
+    ev = build_event("IntentRequest", "ShowPageIntent", {}, True, SHOW, "en-GB")
+    ev["request"]["intent"]["slots"] = {"page": {"name": "page", "value": "an alarm", "resolutions": {"resolutionsPerAuthority": [
+        {"authority": "x", "status": {"code": "ER_SUCCESS_NO_MATCH"}}]}}}
+    out = json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))
+    assert out["response"]["shouldEndSession"] is True and _handoff(house)
+
+
+def test_model_has_the_alexa_jobs():
+    names = {i["name"] for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"]}
+    assert {"AlarmIntent", "TimerIntent", "AlarmOpIntent", "AMAZON.FallbackIntent"} <= names
