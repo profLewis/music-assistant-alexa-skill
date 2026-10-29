@@ -219,6 +219,37 @@ def music_html():
     return {"changed": True, "interfaces": [i.get("type") for i in ifs]}
 
 
+def music_volume(locales=("en-GB", "en-US")):
+    """"Turn the volume down", alarms and timers for the MUSIC skill too (the user, 29 Oct): its voice model at Amazon gets
+    VolumeIntent and Peach Banana's Alarm / Timer intents added (their types too) - nothing else changed - and is rebuilt (a failed build leaves the old
+    model in use). The music skill's own Setup → Deploy rebuilds its model without it: run this again after one."""
+    from .model import VOLUME_INTENT, interaction_model
+    own = interaction_model()["interactionModel"]["languageModel"]
+    add = [VOLUME_INTENT] + [i for i in own["intents"] if i["name"] in ("AlarmIntent", "TimerIntent", "AlarmOpIntent", "TimerLeftIntent")]
+    add_types = [t for t in own["types"] if t["name"] in ("VOLUME_DIR", "ALERT_OP", "ALERT_THING")]
+    m = manager(); sid = m.state.get("skill_id")
+    if not sid:
+        raise DeploymentError("The music skill isn't deployed")
+    out = {}
+    for loc in locales:
+        path = f"/v1/skills/{quote(sid, safe='')}/stages/development/interactionModel/locales/{loc}"
+        r = m.api("GET", path)
+        if r.status_code >= 300:
+            out[loc] = f"no model ({r.status_code})"; continue
+        body = r.json(); lm = body["interactionModel"]["languageModel"]
+        have = {i.get("name") for i in lm.get("intents", [])}
+        new = [i for i in add if i["name"] not in have]
+        if not new:
+            out[loc] = "already there"; continue
+        lm.setdefault("intents", []).extend(new)
+        names = {t["name"] for t in add_types}
+        lm["types"] = [t for t in lm.get("types", []) if t.get("name") not in names] + add_types
+        m.api("PUT", path, json={"interactionModel": body["interactionModel"]})
+        _wait(m, f"/v1/skills/{quote(sid, safe='')}", "interactionModel", loc)
+        out[loc] = "added"
+    return out
+
+
 def _v2(m, method, path, **kw):
     """A call to Amazon's v2 API (the simulator) - the deployment manager only allows v1 paths."""
     r = m._send_once(method, path, 0, kw)

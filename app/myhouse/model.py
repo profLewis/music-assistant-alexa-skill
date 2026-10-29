@@ -7,6 +7,19 @@ def _room_values():
     return [{"name": {"value": k.lower(), "synonyms": alts}} for k, (_l, _r, _t, alts) in ROOMS.items()]
 
 
+# THE ECHO'S OWN VOLUME while a panel is open (the user, 29 Oct: "when my app is playing on the echo it doesn't allow
+# other alexa commands like turn the volume down - let them pass through"): the open session hears everything said, so
+# "turn the volume down" reached the skill as unknown and was lost. Both skills (Peach Banana and the music skill's
+# panel) take it and set the Echo's volume through Home Assistant (script.echo_volume) - the panel and music stay.
+VOLUME_TYPE = {"name": "VOLUME_DIR", "values": [
+    {"name": {"value": "up", "synonyms": ["louder", "higher", "turn up", "increase", "raise", "a bit louder"]}},
+    {"name": {"value": "down", "synonyms": ["quieter", "lower", "softer", "turn down", "decrease", "a bit quieter"]}}]}
+VOLUME_INTENT = {"name": "VolumeIntent", "slots": [{"name": "dir", "type": "VOLUME_DIR"}, {"name": "level", "type": "AMAZON.NUMBER"}],
+                 "samples": ["turn the volume {dir}", "turn volume {dir}", "turn it {dir}", "volume {dir}", "{dir} the volume",
+                             "make the volume {dir}", "make it {dir}", "set the volume to {level}", "set volume to {level}",
+                             "volume to {level}", "volume {level}", "turn the volume to {level}", "change the volume to {level}"]}
+
+
 def interaction_model():
     R = "{room}"
     intents = [
@@ -41,11 +54,13 @@ def interaction_model():
         {"name": "TimerLeftIntent", "slots": [],
          "samples": ["how long is left on the timer", "how long left on the timer", "how much time is left", "how long is left",
                      "what time is the alarm", "what alarms do i have", "what timers do i have", "what time is it"]},
+        VOLUME_INTENT,
         {"name": "AMAZON.HelpIntent", "samples": []}, {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []}, {"name": "AMAZON.FallbackIntent", "samples": []},
         {"name": "AMAZON.NavigateHomeIntent", "samples": []},
     ]
     types = [
+        VOLUME_TYPE,
         {"name": "ROOM", "values": _room_values()},
         {"name": "PAGE", "values": [{"name": {"value": "home", "synonyms": ["the house", "summary", "front page"]}},
                                     {"name": {"value": "lights", "synonyms": ["the lights", "lighting"]}},

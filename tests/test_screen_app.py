@@ -165,3 +165,30 @@ def test_the_hand_overs_own_pause_reopens_the_panel_playing_on(client, monkeypat
     handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.pause"), None)
     r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.PauseIntent", {}, True, "S.pause2"), None)["response"]
     assert r["directives"][0]["data"].get("paused") == 1
+
+
+def test_volume_said_with_the_panel_open_sets_the_echo_and_keeps_the_panel(client, monkeypatch):
+    """29 Oct: "turn the volume down" with the panel open was lost - it's the Echo's volume, set through Home Assistant."""
+    _signin(monkeypatch); _clear()
+    from myhouse import actions
+    calls = []
+    monkeypatch.setattr(actions.ha, "call", lambda *a, **k: calls.append(a))
+    handlers.lambda_handler(_ev("LaunchRequest", None, {}, True, "S.vol"), None)
+    ev = _ev("IntentRequest", "VolumeIntent", {}, False, "S.vol")
+    ev["request"]["intent"]["slots"] = {"dir": {"name": "dir", "value": "quieter", "resolutions": {"resolutionsPerAuthority": [
+        {"status": {"code": "ER_SUCCESS_MATCH"}, "values": [{"value": {"name": "down", "id": "down"}}]}]}}, "level": {"name": "level"}}
+    r = handlers.lambda_handler(ev, None)["response"]
+    assert not r.get("shouldEndSession") and not r.get("outputSpeech") and screen_app.OPEN["echo-1"] == "S.vol"
+    assert calls and calls[0][:2] == ("script", "turn_on") and calls[0][2]["variables"]["direction"] == "down"
+
+
+def test_an_alarm_or_anything_unknown_with_the_panel_open_goes_to_alexa(client, monkeypatch):
+    """29 Oct: "I want all such commands passed through if you don't recognise them"."""
+    _signin(monkeypatch); _clear()
+    from myhouse import handlers as mh
+    said = []
+    monkeypatch.setattr(mh, "hand_off", lambda hi, text=None: said.append((text, hi.attributes_manager.session_attributes.get("page")))
+                        or hi.response_builder.set_should_end_session(True).response)
+    handlers.lambda_handler(_ev("LaunchRequest", None, {}, True, "S.al"), None)
+    r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.FallbackIntent", {}, False, "S.al"), None)["response"]
+    assert r.get("shouldEndSession") is True and said == [(None, "music")] and "echo-1" not in screen_app.OPEN

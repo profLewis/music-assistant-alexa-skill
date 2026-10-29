@@ -42,6 +42,13 @@ def register(app):
         except Exception as e:  # noqa: BLE001
             return jsonify({"error": str(e)[:400]}), 500
 
+    @bp.route("/myhouse/music-volume", methods=["POST"])
+    def music_volume():
+        try:
+            return jsonify(deploy.music_volume())
+        except Exception as e:  # noqa: BLE001
+            return jsonify({"error": str(e)[:400]}), 500
+
     @bp.route("/myhouse/status", methods=["GET"])
     def status():
         return jsonify(deploy.status())

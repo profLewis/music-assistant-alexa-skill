@@ -88,6 +88,12 @@ def music(act):
     return "I can pause, play, skip, go back, or make it louder or quieter."
 
 
+def echo_volume(direction=None, level=None, alexa_device=None):
+    """The Echo's own volume (script.echo_volume in Home Assistant): direction 'up' / 'down' a step, or level 0-10."""
+    v = {"direction": direction or "", "level": level if level not in (None, "?") else "", "alexa_device": alexa_device or ""}
+    ha.call("script", "turn_on", {"entity_id": "script.echo_volume", "variables": v})
+
+
 def heating_mode(m):
     """Normal / Boost (Central Control up a degree for the boost length) / Override (on regardless) / Off (off regardless)."""
     if m in ("normal", "boost", "override", "off"):
