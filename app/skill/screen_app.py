@@ -47,6 +47,8 @@ SEEN = {}      # device id → the session the page last spoke from (it came up)
 FAILED = {}    # device id → when a panel opened there never came up
 FAIL_S = 20    # a panel's session ending this soon, the page silent: it didn't come up
 RETRY_S = 900  # after one that didn't: Alexa's own player for this long
+HANDOFF = {}   # device id → (session, time.time()) of the last music hand-off to the panel there
+HANDOFF_S = 120   # a pause / stop this soon after a hand-off whose page came up is the hand-over's own (see ScreenAppReopen)
 
 
 def _started(handler_input):
@@ -116,7 +118,7 @@ class ScreenAppPlay(AbstractRequestHandler):
         if r is None:   # (no sign-in set up: Alexa's own player, as before)
             from . import lambda_function
             return lambda_function.LaunchRequestOrPlayAudioHandler().handle(handler_input)
-        _started(handler_input)
+        _started(handler_input); HANDOFF[_dev(handler_input)] = (_sid(handler_input), time.time())
         log.info("Screen app: music for a Show - opening the control panel's Music page (session %s)", (_sid(handler_input) or "")[-8:])
         return r
 
@@ -135,10 +137,20 @@ class ScreenAppReopen(AbstractRequestHandler):
             _url, player = stream(handler_input)
         except Exception:
             player = None
-        r = _open_dashboard(handler_input, "music", {"paused": 1, "player": player})
+        # THE HAND-OVER'S OWN PAUSE (29 Oct): once the panel is up, Home Assistant moves the music from "The moon" to the
+        # screen's own speaker, and Music Assistant then stops "The moon" - by voice, which ends the panel's session.
+        # Opened again PAUSED, the page's speaker came back stopped: silence. Soon after a hand-off whose page came up,
+        # it opens with resume instead (the page reconnects its speaker and plays on).
+        dev = _dev(handler_input); ho = HANDOFF.get(dev)
+        resume = bool(ho and SEEN.get(dev) == ho[0] and time.time() - ho[1] < HANDOFF_S)
+        r = _open_dashboard(handler_input, "music", {"resume": 1, "player": player} if resume else {"paused": 1, "player": player})
         if r is None:
             return handler_input.response_builder.response
-        _started(handler_input); ENDED.pop(_dev(handler_input), None)
+        _started(handler_input); ENDED.pop(dev, None)
+        if resume:
+            HANDOFF.pop(dev, None)
+            log.info("Screen app: the hand-over's pause took the screen - the control panel opened again, playing on (session %s)", (_sid(handler_input) or "")[-8:])
+            return r
         log.info("Screen app: MA's pause took the screen - the control panel opened again, paused (session %s)", (_sid(handler_input) or "")[-8:])
         return r
 

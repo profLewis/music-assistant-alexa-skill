@@ -16,7 +16,7 @@ HTML = {"AudioPlayer": {}, "Alexa.Presentation.APL": {}, "Alexa.Presentation.HTM
 def _forget_screens():
     """(the module's per-device state is process-wide: a panel left 'open' here strips other files' AudioPlayer replies)"""
     yield
-    for d in (screen_app.OPEN, screen_app.ENDED, screen_app.STARTED, screen_app.SEEN, screen_app.FAILED):
+    for d in (screen_app.OPEN, screen_app.ENDED, screen_app.STARTED, screen_app.SEEN, screen_app.FAILED, screen_app.HANDOFF):
         d.clear()
 
 
@@ -110,7 +110,7 @@ def test_the_page_asking_to_be_opened_again_gets_a_fresh_start_into_its_screensa
 
 
 def _clear():
-    for d in (screen_app.OPEN, screen_app.ENDED, screen_app.STARTED, screen_app.SEEN, screen_app.FAILED):
+    for d in (screen_app.OPEN, screen_app.ENDED, screen_app.STARTED, screen_app.SEEN, screen_app.FAILED, screen_app.HANDOFF):
         d.clear()
 
 
@@ -149,3 +149,19 @@ def test_a_panel_that_came_up_is_used_again(client, monkeypatch):
     assert not screen_app.FAILED
     r = handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.again"), None)["response"]
     assert [x["type"] for x in r["directives"]] == ["Alexa.Presentation.HTML.Start"]
+
+
+def test_the_hand_overs_own_pause_reopens_the_panel_playing_on(client, monkeypatch):
+    """29 Oct: MA stopping 'The moon' once its music moved to the screen's speaker reopened the panel paused - silence."""
+    _signin(monkeypatch); _clear(); screen_app.HANDOFF.clear()
+    client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
+    handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.play"), None)
+    handlers.lambda_handler(_ev("Alexa.Presentation.HTML.Message", None, {"message": {"type": "opened"}}, False, "S.play"), None)
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.play"), None)
+    r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.PauseIntent", {}, True, "S.pause"), None)["response"]
+    d = r["directives"]
+    assert [x["type"] for x in d] == ["Alexa.Presentation.HTML.Start"] and d[0]["data"].get("resume") == 1 and "paused" not in d[0]["data"]
+    # a later pause (MA's, the panel's session ending again) is a real one: paused
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.pause"), None)
+    r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.PauseIntent", {}, True, "S.pause2"), None)["response"]
+    assert r["directives"][0]["data"].get("paused") == 1
