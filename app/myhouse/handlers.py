@@ -174,6 +174,33 @@ class Command(AbstractRequestHandler):
         return _reply(handler_input, say, INTENT_PAGE[name])
 
 
+def volume(handler_input):
+    """VolumeIntent (model.VOLUME_INTENT) in either skill: the Echo's volume set; with a panel open nothing is said and
+    the session is left as it was (the page stays, the music plays on); otherwise a short OK."""
+    d, lvl = _resolved(handler_input, "dir"), get_slot_value(handler_input, "level")
+    try:
+        dev = handler_input.request_envelope.context.system.device.device_id
+    except Exception:
+        dev = None
+    try:
+        actions.echo_volume(d, lvl, dev)
+    except Exception:
+        log.exception("Volume: Home Assistant didn't answer")
+    log.info("Volume: %s", d or f"to {lvl}")
+    rb = handler_input.response_builder
+    if _html(handler_input):
+        return rb.response
+    return rb.speak("OK.").set_should_end_session(True).response
+
+
+class Volume(AbstractRequestHandler):
+    def can_handle(self, handler_input):
+        return is_intent_name("VolumeIntent")(handler_input)
+
+    def handle(self, handler_input):
+        return volume(handler_input)
+
+
 class Touch(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_request_type("Alexa.Presentation.APL.UserEvent")(handler_input)
@@ -358,7 +385,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Command(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()

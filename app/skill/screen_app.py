@@ -175,6 +175,37 @@ def stream(handler_input):
     return url, (unquote(parts[1]) if len(parts) > 2 else None)
 
 
+class ScreenAppVolume(AbstractRequestHandler):
+    """"Turn the volume down" (VolumeIntent - myhouse/model.VOLUME_INTENT, added to this skill's model by POST
+    /myhouse/music-volume): the Echo's own volume through Home Assistant; the panel and the music stay."""
+    def can_handle(self, handler_input):
+        return is_intent_name("VolumeIntent")(handler_input)
+
+    def handle(self, handler_input):
+        from myhouse.handlers import volume
+        return volume(handler_input)
+
+
+class ScreenAppHandOff(AbstractRequestHandler):
+    """ALEXA'S OWN JOBS WITH THE PANEL OPEN (the user, 29 Oct: "if someone says to alexa to set an alarm or timer would
+    that work when the app is playing? I want all such commands passed through if you don't recognise them"): alarms,
+    timers (myhouse/model, added to this skill's model by POST /myhouse/music-volume) and anything this skill doesn't know
+    (FallbackIntent) are handed to Alexa as Peach Banana does (myhouse.handlers.hand_off): the panel closes, Alexa does
+    it, and the panel comes back on its Music page - the music on the screen's speaker carrying on (script.peach_banana_handoff)."""
+    def can_handle(self, handler_input):
+        from myhouse.handlers import HandOff
+        dev = _dev(handler_input)
+        return (enabled() and dev is not None and _sid(handler_input) is not None and OPEN.get(dev) == _sid(handler_input)
+                and any(is_intent_name(n)(handler_input) for n in HandOff.NAMES))
+
+    def handle(self, handler_input):
+        from myhouse.handlers import HandOff
+        handler_input.attributes_manager.session_attributes["page"] = "music"
+        OPEN.pop(_dev(handler_input), None)   # (closing it is the point - KeepScreenOpen leaves it be)
+        log.info("Screen app: %s - handed to Alexa", handler_input.request_envelope.request.intent.name)
+        return HandOff().handle(handler_input)
+
+
 class ScreenAppMessage(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_request_type("Alexa.Presentation.HTML.Message")(handler_input)
