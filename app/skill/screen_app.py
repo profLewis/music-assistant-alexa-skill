@@ -22,6 +22,11 @@ screen from Peach Banana every time a song started.
   PAUSED (data.paused - the page doesn't send its stop-music, which would pause MA again and loop). A quit (Alexa, exit /
   another skill) has no pause behind it, so the panel stays closed.
 
+  A PANEL THAT NEVER CAME UP (29 Oct: The moon silent - every play was handed to a panel that wasn't there): the page
+  tells the skill it's up ({"type": "opened"}); a music hand-off whose session ends within FAIL_S without a word from the
+  page didn't open, so for RETRY_S the Show's music goes to Alexa's own player instead (the music plays; the panel is
+  tried again after). Each close is logged with Alexa's reason / error.
+
 MUSIC_SCREEN_APP=false turns it off (the launch then plays the latest stream, as upstream)."""
 
 import logging
@@ -37,6 +42,19 @@ log = logging.getLogger(__name__)
 OPEN = {}   # device id → the session the control panel runs in
 ENDED = {}  # device id → when Alexa last ended the panel's session (time.time())
 REOPEN_S = 5   # a pause / stop this soon after the panel's session ended came from that same MA command
+STARTED = {}   # device id → (session, time.time()) of the last panel opened there
+SEEN = {}      # device id → the session the page last spoke from (it came up)
+FAILED = {}    # device id → when a panel opened there never came up
+FAIL_S = 20    # a panel's session ending this soon, the page silent: it didn't come up
+RETRY_S = 900  # after one that didn't: Alexa's own player for this long
+
+
+def _started(handler_input):
+    dev = _dev(handler_input); OPEN[dev] = _sid(handler_input); STARTED[dev] = (_sid(handler_input), time.time())
+
+
+def failed_lately(dev):
+    return time.time() - FAILED.get(dev, 0) < RETRY_S
 
 
 def enabled():
@@ -72,7 +90,7 @@ class ScreenAppLaunch(AbstractRequestHandler):
         if r is None:
             log.warning("Screen app: couldn't open the control panel (sign-in not set up?)")
             return handler_input.response_builder.speak("Sorry, I couldn't open the house.").set_should_end_session(True).response
-        OPEN[_dev(handler_input)] = _sid(handler_input)
+        _started(handler_input); FAILED.pop(_dev(handler_input), None)   # (asked for by hand: try it)
         log.info("Screen app: opened on a Show (session %s)", (_sid(handler_input) or "")[-8:])
         return r
 
@@ -81,7 +99,15 @@ class ScreenAppPlay(AbstractRequestHandler):
     """Music Assistant's play to a Show: open the control panel on the Music page; the page asks for the stream."""
     def can_handle(self, handler_input):
         return (enabled() and is_intent_name("PlayAudio")(handler_input) and _html(handler_input)
-                and OPEN.get(_dev(handler_input)) != _sid(handler_input))   # (already open in this session: just play)
+                and OPEN.get(_dev(handler_input)) != _sid(handler_input)   # (already open in this session: just play)
+                and not self._skip(_dev(handler_input)))
+
+    @staticmethod
+    def _skip(dev):
+        if failed_lately(dev):
+            log.warning("Screen app: the panel didn't come up on this Show lately - Alexa's own player plays it")
+            return True
+        return False
 
     def handle(self, handler_input):
         from myhouse.handlers import _open_dashboard
@@ -90,7 +116,7 @@ class ScreenAppPlay(AbstractRequestHandler):
         if r is None:   # (no sign-in set up: Alexa's own player, as before)
             from . import lambda_function
             return lambda_function.LaunchRequestOrPlayAudioHandler().handle(handler_input)
-        OPEN[_dev(handler_input)] = _sid(handler_input)
+        _started(handler_input)
         log.info("Screen app: music for a Show - opening the control panel's Music page (session %s)", (_sid(handler_input) or "")[-8:])
         return r
 
@@ -99,7 +125,7 @@ class ScreenAppReopen(AbstractRequestHandler):
     """MA's pause / stop just ended the panel's session: open it again, paused, on the Music page."""
     def can_handle(self, handler_input):
         dev = _dev(handler_input)
-        return (enabled() and _html(handler_input) and dev in OPEN and OPEN[dev] != _sid(handler_input)
+        return (enabled() and _html(handler_input) and OPEN.get(dev) != _sid(handler_input)
                 and (is_intent_name("AMAZON.PauseIntent")(handler_input) or is_intent_name("AMAZON.StopIntent")(handler_input))
                 and time.time() - ENDED.get(dev, 0) < REOPEN_S)
 
@@ -112,7 +138,7 @@ class ScreenAppReopen(AbstractRequestHandler):
         r = _open_dashboard(handler_input, "music", {"paused": 1, "player": player})
         if r is None:
             return handler_input.response_builder.response
-        OPEN[_dev(handler_input)] = _sid(handler_input); ENDED.pop(_dev(handler_input), None)
+        _started(handler_input); ENDED.pop(_dev(handler_input), None)
         log.info("Screen app: MA's pause took the screen - the control panel opened again, paused (session %s)", (_sid(handler_input) or "")[-8:])
         return r
 
@@ -144,13 +170,14 @@ class ScreenAppMessage(AbstractRequestHandler):
     def handle(self, handler_input):
         msg = getattr(handler_input.request_envelope.request, "message", None) or {}
         kind = msg.get("type") if isinstance(msg, dict) else None
+        SEEN[_dev(handler_input)] = _sid(handler_input)   # (the page is up)
         log.info("Screen app: message %s (session %s)", kind, (_sid(handler_input) or "")[-8:])
         rb = handler_input.response_builder
         if kind == "restart":   # (opened again before Alexa's 30-minute idle limit closes it - myhouse.handlers.restart)
             from myhouse.handlers import restart
             r = restart(handler_input, msg)
             if r is not None:
-                OPEN[_dev(handler_input)] = _sid(handler_input)
+                _started(handler_input)
                 return r
         if kind == "stop-music":
             rb.add_directive(StopDirective())
@@ -163,7 +190,8 @@ class ScreenAppMessage(AbstractRequestHandler):
 
 
 class ScreenAppEnded(AbstractRequestHandler):
-    """(registered first: only notes the end, then lets nothing else run)"""
+    """(registered FIRST - before SkillEventHandler, which answers every SessionEndedRequest: registered after it, this
+    never ran, so a closed panel stayed 'open' and every play was handed to it - 29 Oct)"""
     def can_handle(self, handler_input):
         if is_request_type("SessionEndedRequest")(handler_input) and OPEN.get(_dev(handler_input)) == _sid(handler_input):
             return True
@@ -171,8 +199,17 @@ class ScreenAppEnded(AbstractRequestHandler):
 
     def handle(self, handler_input):
         r = handler_input.request_envelope.request
-        log.info("Screen app: closed (%s %s)", getattr(r, "reason", None), getattr(getattr(r, "error", None), "message", None))
-        OPEN.pop(_dev(handler_input), None)
+        dev, sid = _dev(handler_input), _sid(handler_input)
+        reason, err = getattr(r, "reason", None), getattr(getattr(r, "error", None), "message", None)
+        st = STARTED.get(dev)
+        if st and st[0] == sid and SEEN.get(dev) != sid and time.time() - st[1] < FAIL_S:
+            FAILED[dev] = time.time()
+            log.warning("Screen app: the panel never came up (closed after %.0f s: %s %s) - Alexa's own player for the next %d min",
+                        time.time() - st[1], reason, err, RETRY_S // 60)
+        else:
+            log.info("Screen app: closed (%s %s)", reason, err)
+        ENDED[dev] = time.time()   # (MA's next voice request - a pause - may be what ended it: see ScreenAppReopen)
+        OPEN.pop(dev, None)
         return handler_input.response_builder.response
 
 
@@ -184,8 +221,6 @@ class KeepScreenOpen(AbstractResponseInterceptor):
         req = handler_input.request_envelope.request
         same = OPEN[dev] == _sid(handler_input)
         name = getattr(getattr(req, "intent", None), "name", None) or req.object_type
-        if same and is_request_type("SessionEndedRequest")(handler_input):
-            ENDED[dev] = time.time()   # (MA's next voice request - a pause - may be what ended it: see ScreenAppReopen)
         log.info("Screen app: %s while open - %s session", name, "SAME" if same else "a NEW" if _sid(handler_input) else "no")
         if is_request_type("Alexa.Presentation.HTML.Message")(handler_input):
             pass   # (its own answer: stop-music's AudioPlayer.Stop stops Alexa's player from before the panel opened)
