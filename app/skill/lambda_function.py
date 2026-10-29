@@ -1043,9 +1043,9 @@ class ResponseLogger(AbstractResponseInterceptor):
 # Request Handlers
 sb.add_request_handler(voice_music.VoiceMusicHandler())
 sb.add_request_handler(CheckAudioInterfaceHandler())
-sb.add_request_handler(SkillEventHandler())
 from . import screen_app   # (fork: the control panel inside the music skill on an Echo Show)
-sb.add_request_handler(screen_app.ScreenAppEnded())
+sb.add_request_handler(screen_app.ScreenAppEnded())   # (before SkillEventHandler, or it never sees a SessionEndedRequest)
+sb.add_request_handler(SkillEventHandler())
 sb.add_request_handler(screen_app.ScreenAppLaunch())
 sb.add_request_handler(screen_app.ScreenAppPlay())
 sb.add_request_handler(screen_app.ScreenAppReopen())

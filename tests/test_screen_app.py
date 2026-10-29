@@ -2,12 +2,22 @@
 
 import base64
 
+import pytest
+
 from golden_cases import build_event
 from skill import lambda_function as handlers
 from skill import screen_app
 
 AUTH = {"Authorization": "Basic " + base64.b64encode(b"test-user:test-password").decode()}
 HTML = {"AudioPlayer": {}, "Alexa.Presentation.APL": {}, "Alexa.Presentation.HTML": {"runtime": {"maxVersion": "1.1"}}}
+
+
+@pytest.fixture(autouse=True)
+def _forget_screens():
+    """(the module's per-device state is process-wide: a panel left 'open' here strips other files' AudioPlayer replies)"""
+    yield
+    for d in (screen_app.OPEN, screen_app.ENDED, screen_app.STARTED, screen_app.SEEN, screen_app.FAILED):
+        d.clear()
 
 
 def _signin(monkeypatch):
@@ -97,3 +107,45 @@ def test_the_page_asking_to_be_opened_again_gets_a_fresh_start_into_its_screensa
     # a page name that isn't one goes Home
     r = handlers.lambda_handler(build_event("Alexa.Presentation.HTML.Message", None, {"message": {"type": "restart", "page": "../x"}}, False, HTML, "en-GB"), None)["response"]
     assert r["directives"][0]["data"]["page"] == "home" and "saver" not in r["directives"][0]["data"]
+
+
+def _clear():
+    for d in (screen_app.OPEN, screen_app.ENDED, screen_app.STARTED, screen_app.SEEN, screen_app.FAILED):
+        d.clear()
+
+
+def test_a_closed_panel_is_forgotten(client, monkeypatch):
+    """29 Oct: SkillEventHandler answered every SessionEndedRequest first - the panel stayed 'open' for ever."""
+    _signin(monkeypatch); _clear()
+    handlers.lambda_handler(_ev("LaunchRequest", None, {}, True, "S.launch"), None)
+    handlers.lambda_handler(_ev("Alexa.Presentation.HTML.Message", None, {"message": {"type": "opened"}}, False, "S.launch"), None)
+    assert screen_app.OPEN["echo-1"] == "S.launch"
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.launch"), None)
+    assert "echo-1" not in screen_app.OPEN and not screen_app.FAILED
+
+
+def test_a_panel_that_never_came_up_lets_alexa_play_the_music(client, monkeypatch):
+    _signin(monkeypatch); _clear()
+    client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
+    r = handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.try"), None)["response"]
+    assert [x["type"] for x in r["directives"]] == ["Alexa.Presentation.HTML.Start"]
+    # Alexa ends it at once, the page never spoke: it didn't come up
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "ERROR", "error": {"type": "INVALID_RESPONSE", "message": "x"}}, False, "S.try"), None)
+    assert "echo-1" in screen_app.FAILED and "echo-1" not in screen_app.OPEN
+    # MA plays again: Alexa's own player plays it (not stripped - the panel isn't open)
+    r = handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.next"), None)["response"]
+    assert "AudioPlayer.Play" in [x["type"] for x in r["directives"]]
+    # asked for by hand ("open music assistant"), the panel is tried again
+    r = handlers.lambda_handler(_ev("LaunchRequest", None, {}, True, "S.hand"), None)["response"]
+    assert [x["type"] for x in r["directives"]] == ["Alexa.Presentation.HTML.Start"] and not screen_app.FAILED
+
+
+def test_a_panel_that_came_up_is_used_again(client, monkeypatch):
+    _signin(monkeypatch); _clear()
+    client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
+    handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.ok"), None)
+    handlers.lambda_handler(_ev("Alexa.Presentation.HTML.Message", None, {"message": {"type": "opened"}}, False, "S.ok"), None)
+    handlers.lambda_handler(_ev("SessionEndedRequest", None, {"reason": "USER_INITIATED"}, False, "S.ok"), None)
+    assert not screen_app.FAILED
+    r = handlers.lambda_handler(_ev("IntentRequest", "PlayAudio", {}, True, "S.again"), None)["response"]
+    assert [x["type"] for x in r["directives"]] == ["Alexa.Presentation.HTML.Start"]
