@@ -63,6 +63,14 @@ def enabled():
     return get_setting("MUSIC_SCREEN_APP", "true").lower() in ("true", "1", "yes")
 
 
+def screen_play():
+    """MUSIC PLAYED INSIDE THE PANEL on a Show (ScreenAppPlay), or by Alexa's own player. OFF unless MUSIC_SCREEN_PLAY is set
+    (the user, 29 Oct: "alexa starts playing 2 songs at the same time - fix that"): the panel's player and Alexa's own
+    can't see each other, so a song left in Alexa's player came back alongside the panel's. Alexa's own player plays one
+    thing at a time - a new song replaces the old - so the Show plays like any other Echo."""
+    return enabled() and get_setting("MUSIC_SCREEN_PLAY", "false").lower() in ("true", "1", "yes")
+
+
 def _dev(handler_input):
     try:
         return handler_input.request_envelope.context.system.device.device_id
@@ -100,7 +108,7 @@ class ScreenAppLaunch(AbstractRequestHandler):
 class ScreenAppPlay(AbstractRequestHandler):
     """Music Assistant's play to a Show: open the control panel on the Music page; the page asks for the stream."""
     def can_handle(self, handler_input):
-        return (enabled() and is_intent_name("PlayAudio")(handler_input) and _html(handler_input)
+        return (screen_play() and is_intent_name("PlayAudio")(handler_input) and _html(handler_input)
                 and OPEN.get(_dev(handler_input)) != _sid(handler_input)   # (already open in this session: just play)
                 and not self._skip(_dev(handler_input)))
 
@@ -267,7 +275,7 @@ class KeepScreenOpen(AbstractResponseInterceptor):
         log.info("Screen app: %s while open - %s session", name, "SAME" if same else "a NEW" if _sid(handler_input) else "no")
         if is_request_type("Alexa.Presentation.HTML.Message")(handler_input):
             pass   # (its own answer: stop-music's AudioPlayer.Stop stops Alexa's player from before the panel opened)
-        elif response.directives:   # Alexa's audio player would take the screen (and freeze the panel): the page plays
+        elif response.directives and screen_play():   # Alexa's audio player would take the screen (and freeze the panel): the page plays
             response.directives = [d for d in response.directives if not (getattr(d, "object_type", "") or "").startswith("AudioPlayer.")
                                    and not (getattr(d, "object_type", "") or "").startswith("Alexa.Presentation.APL")] or None
         if (same and (is_intent_name("AMAZON.StopIntent")(handler_input) or is_intent_name("AMAZON.CancelIntent")(handler_input))
