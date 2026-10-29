@@ -13,6 +13,12 @@ HTML = {"AudioPlayer": {}, "Alexa.Presentation.APL": {}, "Alexa.Presentation.HTM
 
 
 @pytest.fixture(autouse=True)
+def _panel_music_on(monkeypatch):
+    """(these tests are about music played inside the panel - MUSIC_SCREEN_PLAY on; the default, off, has its own test)"""
+    monkeypatch.setenv("MUSIC_SCREEN_PLAY", "true")
+
+
+@pytest.fixture(autouse=True)
 def _forget_screens():
     """(the module's per-device state is process-wide: a panel left 'open' here strips other files' AudioPlayer replies)"""
     yield
@@ -192,3 +198,13 @@ def test_an_alarm_or_anything_unknown_with_the_panel_open_goes_to_alexa(client, 
     handlers.lambda_handler(_ev("LaunchRequest", None, {}, True, "S.al"), None)
     r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.FallbackIntent", {}, False, "S.al"), None)["response"]
     assert r.get("shouldEndSession") is True and said == [(None, "music")] and "echo-1" not in screen_app.OPEN
+
+
+
+def test_by_default_a_show_plays_music_with_alexas_own_player(client, monkeypatch):
+    """29 Oct: "alexa starts playing 2 songs at the same time" - the panel's player and Alexa's own both played."""
+    _signin(monkeypatch); _clear(); monkeypatch.delenv("MUSIC_SCREEN_PLAY", raising=False)
+    client.post("/ma/push-url", json={"streamUrl": "https://ma.example.com/flow/s/The%20moon/x/The%20moon.mp3", "title": "Trouble"}, headers=AUTH)
+    r = handlers.lambda_handler(build_event("IntentRequest", "PlayAudio", {}, True, HTML, "en-GB"), None)["response"]
+    types = [d["type"] for d in r.get("directives") or []]
+    assert "AudioPlayer.Play" in types and "Alexa.Presentation.HTML.Start" not in types
