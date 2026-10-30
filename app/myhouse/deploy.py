@@ -14,7 +14,7 @@ from urllib.parse import quote
 from skill_deployment import DeploymentError, https_url, manager, pack
 from app_settings import get_setting
 
-from . import widgets
+from . import alerts, widgets
 from .model import interaction_model
 
 STATE = Path(os.environ.get("MYHOUSE_STATE_PATH", "/data/myhouse.json"))
@@ -113,7 +113,7 @@ def manifest(endpoint, cert=None, viewports=None, regions=None):
                             **({"regions": regions} if regions else {})}},
         "privacyAndCompliance": {"allowsPurchases": False, "usesPersonalInfo": False, "isChildDirected": False,
                                  "isExportCompliant": True, "containsAds": False},
-        "permissions": [],
+        "permissions": [{"name": n} for n in alerts.PERMISSIONS],
     }}
 
 

@@ -169,14 +169,84 @@ def _handoff(calls):
     return [c[2]["variables"] for c in calls if c[:2] == ("script", "turn_on") and c[2]["entity_id"] == "script.peach_banana_handoff"]
 
 
-def test_alarm_said_with_the_panel_open_goes_to_alexa_and_comes_back(house):
+@pytest.fixture
+def alerts_refused(monkeypatch):
+    from myhouse import alerts
+    monkeypatch.setattr(alerts, "_post", lambda *a: False)
+
+
+@pytest.fixture
+def alerts_ok(monkeypatch):
+    from myhouse import alerts
+    sent = []
+    monkeypatch.setattr(alerts, "_post", lambda h, path, body: sent.append((path, body)) or True)
+    return sent
+
+
+def test_timer_set_directly_keeps_the_panel_open(house, alerts_ok):
+    r = run("IntentRequest", "TimerIntent", slots={"dur": "PT5M"})["response"]
+    assert not r.get("shouldEndSession") and "5 minutes" in r["outputSpeech"]["ssml"] and not _handoff(house)
+    assert alerts_ok[0][0] == "/v1/alerts/timers" and alerts_ok[0][1]["duration"] == "PT5M"
+
+
+def test_alarm_set_directly_says_it_wont_ring(house, alerts_ok):
+    r = run("IntentRequest", "AlarmIntent", slots={"time": "07:30"})["response"]
+    assert not r.get("shouldEndSession") and "rather than ring" in r["outputSpeech"]["ssml"] and not _handoff(house)
+    assert alerts_ok[0][1]["trigger"]["timeZoneId"] == "Europe/London" and "T07:30:00" in alerts_ok[0][1]["trigger"]["scheduledTime"]
+
+
+def _alerts(monkeypatch, left=(), al=()):
+    from myhouse import alerts
+    deleted = []
+    monkeypatch.setattr(alerts, "timers_left", lambda h, now=None: list(left))
+    monkeypatch.setattr(alerts, "alarms_set", lambda h: list(al))
+    monkeypatch.setattr(alerts, "_call", lambda h, m, p: deleted.append((m, p)) or {})
+    return deleted
+
+
+def test_how_long_is_left_answered_here(house, monkeypatch):
+    _alerts(monkeypatch, left=[250], al=[("a", "2026-10-31T07:30:00.000")])
+    r = run("IntentRequest", "TimerLeftIntent")["response"]
+    assert "5 minutes left on a timer" in r["outputSpeech"]["ssml"] and "7:30 am" in r["outputSpeech"]["ssml"]
+    assert not r.get("shouldEndSession") and not _handoff(house)
+
+
+def _op(op, thing):
+    ev = build_event("IntentRequest", "AlarmOpIntent", {}, True, SHOW, "en-GB")
+    ev["request"]["intent"]["slots"] = {k: {"name": k, "value": v, "resolutions": {"resolutionsPerAuthority": [{"authority": "x", "status": {"code": "ER_SUCCESS_MATCH"}, "values": [{"value": {"name": v, "id": v}}]}]}} for k, v in (("op", op), ("thing", thing))}
+    return json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))["response"]
+
+
+def test_cancel_our_alarm_here_and_alexas_goes_to_alexa(house, monkeypatch):
+    deleted = _alerts(monkeypatch, al=[("tok", "2026-10-31T07:30:00.000")])
+    r = _op("cancel", "alarm")
+    assert "cancelled 1 alarm" in r["outputSpeech"]["ssml"] and ("DELETE", "/v1/alerts/reminders/tok") in deleted and not _handoff(house)
+    _alerts(monkeypatch)
+    assert _op("cancel", "alarm")["shouldEndSession"] is True and _handoff(house)[0]["text"] == "cancel my alarm"
+
+
+def test_time_answered_here(house):
+    r = run("IntentRequest", "TimeIntent")["response"]
+    assert "It's" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession")
+
+
+def test_alarm_time_is_the_next_one(house):
+    from datetime import datetime
+    from myhouse import alerts
+    now = datetime(2026, 10, 30, 19, 0)
+    assert alerts.next_time("19:02", now) == datetime(2026, 10, 30, 19, 2)
+    assert alerts.next_time("07:30", now) == datetime(2026, 10, 31, 7, 30)
+    assert alerts.next_time("MO", now) is None
+
+
+def test_alarm_said_with_the_panel_open_goes_to_alexa_and_comes_back(house, alerts_refused):
     r = run("IntentRequest", "AlarmIntent", slots={"time": "07:30"})["response"]
     assert r["shouldEndSession"] is True   # (the web app closes - Alexa has the Echo)
     v = _handoff(house)
     assert v and v[0]["text"] == "set an alarm for 7:30 am" and v[0]["back_after"] == 12
 
 
-def test_timer_duration_in_words(house):
+def test_timer_duration_in_words(house, alerts_refused):
     run("IntentRequest", "TimerIntent", slots={"dur": "PT1H5M"})
     assert _handoff(house)[0]["text"] == "set a timer for 1 hour 5 minutes"
     assert handlers._duration("PT30S") == "30 seconds" and handlers._duration("nonsense") is None

@@ -10,7 +10,7 @@ from ask_sdk_core.utils import get_slot_value, is_intent_name, is_request_type
 from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
 from ask_sdk_model.interfaces.alexa.presentation.html import Configuration, StartDirective, StartRequest, StartRequestMethod
 
-from . import actions, apl, deploy, pages, widgets
+from . import actions, alerts, apl, deploy, pages, widgets
 
 log = logging.getLogger("myhouse")
 INTENT_PAGE = {"LightsOnIntent": "lights", "LightsOffIntent": "lights", "BoostIntent": "heating", "EndBoostIntent": "heating",
@@ -300,6 +300,41 @@ def _duration(d):
     return " ".join(f"{n} {u}{'s' if n != 1 else ''}" for n, u in parts)
 
 
+def _alexa_at(entity):
+    """Alexa's own next alarm / timer on The moon (Home Assistant reads them): a local datetime if it's still to come."""
+    from datetime import datetime
+    from dateutil import tz
+    from . import ha
+    try:
+        at = datetime.fromisoformat(ha.state(entity) or "")
+        at = at if at.tzinfo else at.replace(tzinfo=tz.UTC)
+        return at.astimezone(tz.gettz(alerts.ZONE)) if at > datetime.now(tz.UTC) else None
+    except Exception:
+        return None
+
+
+def _left_words(secs):
+    h, m = secs // 3600, (secs % 3600 + 59) // 60
+    if not h and secs < 60:
+        return f"{secs} seconds"
+    return _duration(f"PT{h}H{m}M" if h else f"PT{m}M")
+
+
+def alerts_said(handler_input):
+    """What's set, in words: from this skill and Alexa's own. None if Alexa won't say (no permission)."""
+    left, al = alerts.timers_left(handler_input), alerts.alarms_set(handler_input)
+    if left is None or al is None:
+        return None
+    words = [f"{_left_words(x)} left on a timer" for x in left]
+    words += [f"an alarm at {_clock(at[11:16])}" for _t, at in al]
+    own_t, own_a = _alexa_at("sensor.the_moon_next_timer"), _alexa_at("sensor.the_moon_next_alarm")
+    if own_t and not left:
+        words.append(f"a timer ending at {_clock(own_t.strftime('%H:%M'))}")
+    if own_a and not any(at[11:16] == own_a.strftime("%H:%M") for _t, at in al):
+        words.append(f"an alarm at {_clock(own_a.strftime('%H:%M'))}")
+    return "You have " + ", and ".join(words) + "." if words else "You have no alarms or timers."
+
+
 def hand_off(handler_input, text=None):
     """LET ALEXA DO IT, THEN COME BACK (the user, 24 Oct: with the panel open, "set an alarm" went to Peach Banana and was
     lost - "must be able to get back to my app after"). The session ends - the web app closes, so Alexa has the Echo
@@ -336,17 +371,51 @@ class HandOff(AbstractRequestHandler):
     def handle(self, handler_input):
         name = handler_input.request_envelope.request.intent.name
         text = None
+        rb = handler_input.response_builder
+        # (done from here when Alexa's services allow it: the session stays open, as for the volume)
         if name == "AlarmIntent":
             t = get_slot_value(handler_input, "time")
+            if t and alerts.alarm(handler_input, t, _clock(t)):
+                log.info("Peach Banana: alarm set here (%s)", t)
+                return rb.speak(f"OK, {_clock(t)}. I'll say it, rather than ring.").response
             text = f"set an alarm for {_clock(t)}" if t else None
         elif name == "TimerIntent":
-            d = _duration(get_slot_value(handler_input, "dur"))
+            raw = get_slot_value(handler_input, "dur")
+            d = _duration(raw)
+            if d and alerts.timer(handler_input, raw):
+                log.info("Peach Banana: timer set here (%s)", raw)
+                return rb.speak(f"OK, {d}.").response
             text = f"set a timer for {d}" if d else None
         elif name == "AlarmOpIntent":
             op, thing = _resolved(handler_input, "op"), _resolved(handler_input, "thing")
+            if op == "show":
+                said = alerts_said(handler_input)
+                if said:
+                    return rb.speak(said).response
+            elif op == "cancel" and thing:
+                timers = thing.startswith("timer")
+                n = alerts.cancel_timers(handler_input) if timers else alerts.cancel_alarms(handler_input)
+                # (none of ours: it may be one set with Alexa, which only Alexa can cancel)
+                if n:
+                    log.info("Peach Banana: cancelled %s %s here", n, thing)
+                    return rb.speak(f"OK, cancelled {n} {thing.rstrip('s')}{'s' if n != 1 else ''}.").response
             text = f"{op} my {thing}" if op and thing else None
-        # (TimerLeftIntent / Fallback: the words said aren't sent to a skill - the user says it again to Alexa)
+        elif name == "TimerLeftIntent":
+            said = alerts_said(handler_input)
+            if said:
+                return rb.speak(said).response
+        # (Fallback: the words said aren't sent to a skill - the user says it again to Alexa)
         return hand_off(handler_input, text)
+
+
+class Time(AbstractRequestHandler):
+    def can_handle(self, handler_input):
+        return is_intent_name("TimeIntent")(handler_input)
+
+    def handle(self, handler_input):
+        from datetime import datetime
+        from dateutil import tz
+        return handler_input.response_builder.speak(f"It's {_clock(datetime.now(tz.gettz(alerts.ZONE)).strftime('%H:%M'))}.").response
 
 
 class Help(AbstractRequestHandler):
@@ -385,7 +454,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()
