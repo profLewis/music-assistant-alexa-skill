@@ -65,10 +65,10 @@ def interaction_model():
         # handed back to Alexa - handlers.HandOff - instead of being lost to Help; anything else unknown: FallbackIntent)
         {"name": "AlarmIntent", "slots": [{"name": "time", "type": "AMAZON.TIME"}],
          "samples": ["set an alarm for {time}", "set alarm for {time}", "set an alarm at {time}", "set my alarm for {time}",
-                     "wake me up at {time}", "wake me at {time}", "alarm for {time}", "set an alarm", "set alarm"]},
+                     "wake me up at {time}", "wake me at {time}", "alarm for {time}", "set an alarm", "set alarm", "for {time}", "{time}"]},
         {"name": "TimerIntent", "slots": [{"name": "dur", "type": "AMAZON.DURATION"}],
          "samples": ["set a timer for {dur}", "set timer for {dur}", "set a {dur} timer", "start a {dur} timer", "timer for {dur}",
-                     "start a timer for {dur}", "set a timer", "start a timer"]},
+                     "start a timer for {dur}", "set a timer", "start a timer", "for {dur}", "{dur}"]},
         {"name": "AlarmOpIntent", "slots": [{"name": "op", "type": "ALERT_OP"}, {"name": "thing", "type": "ALERT_THING"}],
          "samples": ["{op} the {thing}", "{op} my {thing}", "{op} all {thing}", "{op} all my {thing}", "{op} all the {thing}"]},
         {"name": "TimerLeftIntent", "slots": [],

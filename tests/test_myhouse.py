@@ -211,8 +211,9 @@ def test_how_long_is_left_answered_here(house, monkeypatch):
     assert not r.get("shouldEndSession") and not _handoff(house)
 
 
-def _op(op, thing):
+def _op(op, thing, ses=None):
     ev = build_event("IntentRequest", "AlarmOpIntent", {}, True, SHOW, "en-GB")
+    ev["session"]["attributes"] = ses or {}
     ev["request"]["intent"]["slots"] = {k: {"name": k, "value": v, "resolutions": {"resolutionsPerAuthority": [{"authority": "x", "status": {"code": "ER_SUCCESS_MATCH"}, "values": [{"value": {"name": v, "id": v}}]}]}} for k, v in (("op", op), ("thing", thing))}
     return json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))["response"]
 
@@ -222,7 +223,9 @@ def test_cancel_our_alarm_here_and_alexas_goes_to_alexa(house, monkeypatch):
     r = _op("cancel", "alarm")
     assert "cancelled 1 alarm" in r["outputSpeech"]["ssml"] and ("DELETE", "/v1/alerts/reminders/tok") in deleted and not _handoff(house)
     _alerts(monkeypatch)
-    assert _op("cancel", "alarm")["shouldEndSession"] is True and _handoff(house)[0]["text"] == "cancel my alarm"
+    r = _op("cancel", "alarm")
+    assert "no alarm set here" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
+    assert _op("cancel", "alarm", {"no_alert": True})["shouldEndSession"] is True and _handoff(house)[0]["text"] == "cancel my alarm"
 
 
 def test_time_answered_here(house):
@@ -321,3 +324,19 @@ def test_every_question_opening_reaches_the_ai():
     for s in ["what {q}", "does {q}", "is {q}", "can {q}", "give me {q}"]:
         assert s in said
     assert len(said) == len(set(said))
+
+
+def test_house_keeps_the_timer_when_alexa_refuses(house, alerts_refused, monkeypatch):
+    got = []
+    monkeypatch.setattr(ha, "alert", lambda action, kind="", at=0: got.append((action, kind, at)) or {"ok": True, "count": 1, "items": []})
+    r = run("IntentRequest", "TimerIntent", slots={"dur": "PT12M"})["response"]
+    assert "12 minutes" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
+    assert got[0][:2] == ("set", "timer") and got[0][2] > 1e9
+    assert "cancelled 1 timer" in _op("cancel", "timer")["outputSpeech"]["ssml"] and not _handoff(house)
+
+
+def test_a_timer_with_no_length_is_asked_about(house):
+    r = run("IntentRequest", "TimerIntent")["response"]
+    assert "How long" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
+    r = run("IntentRequest", "AlarmIntent")["response"]
+    assert "What time" in r["outputSpeech"]["ssml"] and not _handoff(house)
