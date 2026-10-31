@@ -44,8 +44,8 @@ def call(domain, service, data=None):
     return r.json()
 
 
-def ask_ai(text, timeout=6.5):
-    """script.ai_ask's answer ({ok, why, answer}), inside the time Alexa waits for a skill. Raises if too slow or it fails."""
-    r = requests.post(f"{BASE}/services/script/ai_ask?return_response", headers=_headers(), json={"text": text}, timeout=timeout)
+def ask_ai(text, conversation_id="", timeout=6.5):
+    """script.ai_ask's answer ({ok, why, answer, conversation_id}), inside the time Alexa waits for a skill. Raises if too slow or it fails."""
+    r = requests.post(f"{BASE}/services/script/ai_ask?return_response", headers=_headers(), json={"text": text, "conversation_id": conversation_id}, timeout=timeout)
     r.raise_for_status()
     return r.json().get("service_response") or {}

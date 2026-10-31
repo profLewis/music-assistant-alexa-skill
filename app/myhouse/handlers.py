@@ -423,8 +423,9 @@ class AskAI(AbstractRequestHandler):
         if not text:
             return hand_off(handler_input)
         rb = handler_input.response_builder
+        at = handler_input.attributes_manager.session_attributes
         try:
-            got = ha.ask_ai(text)
+            got = ha.ask_ai(text, at.get("ai_chat", ""))
         except Exception:
             log.exception("Peach Banana: the AI helper didn't answer")
             return rb.speak("Sorry, the AI helper didn't answer in time.").response
@@ -433,6 +434,8 @@ class AskAI(AbstractRequestHandler):
         if not got.get("ok"):
             log.warning("Peach Banana: the AI helper failed: %s", got)
             return rb.speak("Sorry, the AI helper couldn't answer that.").response
+        # (kept so a follow-up continues the same conversation)
+        at["ai_chat"] = got.get("conversation_id", "")
         return rb.speak(_spoken(got["answer"])).response
 
 
