@@ -77,6 +77,10 @@ def interaction_model():
         {"name": "TimeIntent", "slots": [], "samples": ["what time is it", "what's the time", "what is the time", "tell me the time"]},
         VOLUME_INTENT,
         *[{"name": n, "slots": [{"name": "q", "type": "AMAZON.SearchQuery"}], "samples": samples} for n, (_w, samples) in ASK_INTENTS.items()],
+        # (the user, 31 Oct: "when someone says alexa play xxx, route that through peach banana": heard while the panel is open)
+        {"name": "PlayThisIntent", "slots": [{"name": "what", "type": "AMAZON.SearchQuery"}],
+         "samples": ["play {what}", "play me {what}", "play some {what}", "put on {what}", "listen to {what}"]},
+        {"name": "AMAZON.PauseIntent", "samples": []}, {"name": "AMAZON.ResumeIntent", "samples": []},
         {"name": "AMAZON.HelpIntent", "samples": []}, {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []}, {"name": "AMAZON.FallbackIntent", "samples": []},
         {"name": "AMAZON.NavigateHomeIntent", "samples": []},

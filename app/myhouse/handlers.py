@@ -519,11 +519,51 @@ class Help(AbstractRequestHandler):
                           "set the house to 20 degrees, or pause the music.")
 
 
+class PlayThis(AbstractRequestHandler):
+    def can_handle(self, handler_input):
+        return is_intent_name("PlayThisIntent")(handler_input)
+
+    def handle(self, handler_input):
+        rb = handler_input.response_builder
+        what = get_slot_value(handler_input, "what")
+        if not what:
+            return rb.speak("What would you like to play?").response
+        try:
+            got = ha.play_this(what)
+        except Exception:
+            log.exception("Peach Banana: couldn't play %s", what)
+            return rb.speak("Sorry, Music Assistant didn't answer.").response
+        if not got.get("ok"):
+            return rb.speak(f"Sorry, I couldn't find {_spoken(what)}.").response
+        return rb.speak(f"Playing {_spoken(got.get('name', what))}.").response
+
+
+def _music_playing():
+    try:
+        return any(ha.state(p) == "playing" for p in actions._players())
+    except Exception:
+        log.exception("Peach Banana: couldn't see the music")
+        return False
+
+
+class PauseResume(AbstractRequestHandler):
+    def can_handle(self, handler_input):
+        return is_intent_name("AMAZON.PauseIntent")(handler_input) or is_intent_name("AMAZON.ResumeIntent")(handler_input)
+
+    def handle(self, handler_input):
+        actions.music("pause" if is_intent_name("AMAZON.PauseIntent")(handler_input) else "play")
+        return handler_input.response_builder.response
+
+
 class Stop(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_intent_name("AMAZON.StopIntent")(handler_input) or is_intent_name("AMAZON.CancelIntent")(handler_input)
 
     def handle(self, handler_input):
+        # (the user, 31 Oct: "if they say pause or stop it should refer to that": the music stops and the panel stays; said again, it closes)
+        if _music_playing():
+            actions.music("pause")
+            return handler_input.response_builder.response
         return handler_input.response_builder.set_should_end_session(True).response
 
 
@@ -546,7 +586,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()

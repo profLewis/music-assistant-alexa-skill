@@ -39,6 +39,7 @@ def _house_not_reached(monkeypatch):
         raise RuntimeError("no house in tests")
     monkeypatch.setattr(ha, "alert", refuse)
     monkeypatch.setattr(ha, "ask_ai", refuse)
+    monkeypatch.setattr(ha, "play_this", refuse)
 
 
 def run(req_type, intent=None, extra=None, iface=SHOW, slots=None):
@@ -349,3 +350,20 @@ def test_a_timer_with_no_length_is_asked_about(house):
     assert "How long" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
     r = run("IntentRequest", "AlarmIntent")["response"]
     assert "What time" in r["outputSpeech"]["ssml"] and not _handoff(house)
+
+
+def test_play_this_goes_to_the_house_and_stays_open(house, monkeypatch):
+    asked = []
+    monkeypatch.setattr(ha, "play_this", lambda t: asked.append(t) or {"ok": True, "name": "Born to Run", "kind": "album"})
+    r = run("IntentRequest", "PlayThisIntent", slots={"what": "born to run"})["response"]
+    assert asked == ["born to run"] and "Playing Born to Run" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
+
+
+def test_stop_stops_the_music_and_keeps_the_panel(house, monkeypatch):
+    done = []
+    monkeypatch.setattr(handlers, "_music_playing", lambda: True)
+    monkeypatch.setattr(actions, "music", lambda a: done.append(a))
+    r = run("IntentRequest", "AMAZON.StopIntent")["response"]
+    assert done == ["pause"] and not r.get("shouldEndSession")
+    monkeypatch.setattr(handlers, "_music_playing", lambda: False)
+    assert run("IntentRequest", "AMAZON.StopIntent")["response"]["shouldEndSession"] is True
