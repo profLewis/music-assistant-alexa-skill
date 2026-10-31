@@ -29,7 +29,26 @@ ASK_INTENTS = {"AskIntent": ("", ["ask {q}", "ask about {q}", "question {q}"]),
                "AskWhyIntent": ("why", ["why {q}"]),
                "AskHowIntent": ("how", ["how {q}"]),
                "AskWhereIntent": ("where", ["where {q}"]),
-               "AskWhenIntent": ("when", ["when {q}"])}
+               "AskWhenIntent": ("when", ["when {q}"]),
+               # (the user, 31 Oct: "what does a banana look like" went to Alexa: no opening matched, and Alexa doesn't send the words of what it can't place)
+               "AskWhatOpenIntent": ("what", ["what {q}"]),
+               "AskWhichOpenIntent": ("which", ["which {q}"]),
+               "AskIsOpenIntent": ("is", ["is {q}"]),
+               "AskAreOpenIntent": ("are", ["are {q}"]),
+               "AskCanOpenIntent": ("can", ["can {q}"]),
+               "AskCouldOpenIntent": ("could", ["could {q}"]),
+               "AskDoOpenIntent": ("do", ["do {q}"]),
+               "AskDoesOpenIntent": ("does", ["does {q}"]),
+               "AskDidOpenIntent": ("did", ["did {q}"]),
+               "AskWillOpenIntent": ("will", ["will {q}"]),
+               "AskWouldOpenIntent": ("would", ["would {q}"]),
+               "AskShouldOpenIntent": ("should", ["should {q}"]),
+               "AskHasOpenIntent": ("has", ["has {q}"]),
+               "AskHaveOpenIntent": ("have", ["have {q}"]),
+               "AskExplainOpenIntent": ("explain", ["explain {q}"]),
+               "AskDescribeOpenIntent": ("describe", ["describe {q}"]),
+               "AskDefineOpenIntent": ("define", ["define {q}"]),
+               "AskGiveIntent": ("give me", ["give me {q}"])}
 
 
 def interaction_model():

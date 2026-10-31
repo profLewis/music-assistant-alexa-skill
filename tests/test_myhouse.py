@@ -308,3 +308,10 @@ def test_model_has_the_ask_intents():
     names = {i["name"]: i for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"]}
     for n in model.ASK_INTENTS:
         assert names[n]["slots"][0]["type"] == "AMAZON.SearchQuery"
+
+
+def test_every_question_opening_reaches_the_ai():
+    said = [s for _w, samples in model.ASK_INTENTS.values() for s in samples]
+    for s in ["what {q}", "does {q}", "is {q}", "can {q}", "give me {q}"]:
+        assert s in said
+    assert len(said) == len(set(said))
