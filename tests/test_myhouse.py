@@ -32,6 +32,15 @@ def house(monkeypatch):
     return calls
 
 
+@pytest.fixture(autouse=True)
+def _house_not_reached(monkeypatch):
+    """These must never set a real timer: ha.alert goes to the house's own Home Assistant when run on it."""
+    def refuse(*a, **k):
+        raise RuntimeError("no house in tests")
+    monkeypatch.setattr(ha, "alert", refuse)
+    monkeypatch.setattr(ha, "ask_ai", refuse)
+
+
 def run(req_type, intent=None, extra=None, iface=SHOW, slots=None):
     ev = build_event(req_type, intent, extra or {}, True, iface, "en-GB")
     if slots:
@@ -328,10 +337,10 @@ def test_every_question_opening_reaches_the_ai():
 
 def test_house_keeps_the_timer_when_alexa_refuses(house, alerts_refused, monkeypatch):
     got = []
-    monkeypatch.setattr(ha, "alert", lambda action, kind="", at=0: got.append((action, kind, at)) or {"ok": True, "count": 1, "items": []})
+    monkeypatch.setattr(ha, "alert", lambda action, kind="", at=0, secs=0: got.append((action, kind, at, secs)) or {"ok": True, "count": 1, "items": []})
     r = run("IntentRequest", "TimerIntent", slots={"dur": "PT12M"})["response"]
     assert "12 minutes" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
-    assert got[0][:2] == ("set", "timer") and got[0][2] > 1e9
+    assert got[0][:2] == ("set", "timer") and got[0][2] > 1e9 and got[0][3] == 720
     assert "cancelled 1 timer" in _op("cancel", "timer")["outputSpeech"]["ssml"] and not _handoff(house)
 
 

@@ -381,7 +381,17 @@ def invoke_skill():
             app_id = (((body.get("context") or {}).get("System") or {}).get("application") or {}).get("applicationId") \
                 or ((body.get("session") or {}).get("application") or {}).get("applicationId")
             if app_id == sid:
-                return app.extensions["myhouse_adapter"].dispatch_request()
+                # (the first request after a restart can fail checking Amazon's certificate, and went on to the music skill, which
+                # told the Show "this skill is not supported" and closed the panel. Once more, then a quiet nothing: never the music skill)
+                try:
+                    return app.extensions["myhouse_adapter"].dispatch_request()
+                except Exception:
+                    app.logger.exception("Cat Ballou request failed, trying once more")
+                try:
+                    return app.extensions["myhouse_adapter"].dispatch_request()
+                except Exception:
+                    app.logger.exception("Cat Ballou request failed twice")
+                    return jsonify({"version": "1.0", "response": {}})
     except Exception:
         app.logger.exception("Cat Ballou routing failed")
     return skill_adapter.dispatch_request()

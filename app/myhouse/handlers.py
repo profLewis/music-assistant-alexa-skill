@@ -327,9 +327,9 @@ def _left_words(secs):
 
 
 # (the user, 31 Oct: "set a timer" went to Alexa because the skill hasn't the permission: the house keeps them instead - script.peach_alert)
-def _house_set(kind, at):
+def _house_set(kind, at, secs=0):
     try:
-        return bool(ha.alert("set", kind, int(at)).get("ok"))
+        return bool(ha.alert("set", kind, int(at), secs).get("ok"))
     except Exception:
         log.exception("Peach Banana: the house couldn't set the %s", kind)
         return False
@@ -428,7 +428,7 @@ class HandOff(AbstractRequestHandler):
             d = _duration(raw)
             if not d:
                 return rb.speak("How long for?").response
-            if alerts.timer(handler_input, raw) or _house_set("timer", time.time() + _seconds(raw)):
+            if alerts.timer(handler_input, raw) or _house_set("timer", time.time() + _seconds(raw), _seconds(raw)):
                 log.info("Peach Banana: timer set here (%s)", raw)
                 return rb.speak(f"OK, {d}.").response
             text = f"set a timer for {d}"
