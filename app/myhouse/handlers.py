@@ -143,7 +143,9 @@ class ShowPage(AbstractRequestHandler):
 
     def handle(self, handler_input):
         if _unmatched(handler_input, "page"):
-            return hand_off(handler_input)   # (not one of our pages - something for Alexa)
+            # (not one of our pages: the words were heard, so the AI helper tries first)
+            said = get_slot_value(handler_input, "page")
+            return ask_ai_said(handler_input, said) if said else hand_off(handler_input)
         p = (get_slot_value(handler_input, "page") or "home").lower()
         p = {"radiators": "heating", "rads": "heating", "the heating": "heating", "the lights": "lights", "the music": "music"}.get(p, p)
         dash = {"home": "home", "lights": "lights", "heating": "energy", "music": "music"}.get(p)
@@ -158,7 +160,9 @@ class Command(AbstractRequestHandler):
     def handle(self, handler_input):
         name = handler_input.request_envelope.request.intent.name
         if name == "MusicIntent" and _unmatched(handler_input, "act"):
-            return hand_off(handler_input)   # ("{act}" on its own catches all sorts)
+            # ("{act}" on its own catches all sorts: the AI helper tries first)
+            said = get_slot_value(handler_input, "act")
+            return ask_ai_said(handler_input, said) if said else hand_off(handler_input)
         rm = get_slot_value(handler_input, "room")
         try:
             say = {
@@ -406,7 +410,11 @@ class HandOff(AbstractRequestHandler):
             said = alerts_said(handler_input)
             if said:
                 return rb.speak(said).response
-        # (Fallback: the words said aren't sent to a skill - the user says it again to Alexa)
+        # (Fallback: the words said aren't sent to a skill. Once, ask again and keep the panel; then the user says it again to Alexa)
+        at = handler_input.attributes_manager.session_attributes
+        if name == "AMAZON.FallbackIntent" and not at.get("asked_again"):
+            at["asked_again"] = True
+            return rb.speak("Sorry, I didn't catch that. Try again, starting with: ask.").response
         return hand_off(handler_input, text)
 
 
@@ -422,21 +430,25 @@ class AskAI(AbstractRequestHandler):
         text = f"{word} {q}".strip() if q else None
         if not text:
             return hand_off(handler_input)
-        rb = handler_input.response_builder
-        at = handler_input.attributes_manager.session_attributes
-        try:
-            got = ha.ask_ai(text, at.get("ai_chat", ""))
-        except Exception:
-            log.exception("Peach Banana: the AI helper didn't answer")
-            return rb.speak("Sorry, the AI helper didn't answer in time.").response
-        if got.get("why") == "off":
-            return hand_off(handler_input, text)
-        if not got.get("ok"):
-            log.warning("Peach Banana: the AI helper failed: %s", got)
-            return rb.speak("Sorry, the AI helper couldn't answer that.").response
-        # (kept so a follow-up continues the same conversation)
-        at["ai_chat"] = got.get("conversation_id", "")
-        return rb.speak(_spoken(got["answer"])).response
+        return ask_ai_said(handler_input, text)
+
+
+def ask_ai_said(handler_input, text):
+    rb = handler_input.response_builder
+    at = handler_input.attributes_manager.session_attributes
+    try:
+        got = ha.ask_ai(text, at.get("ai_chat", ""))
+    except Exception:
+        log.exception("Peach Banana: the AI helper didn't answer")
+        return rb.speak("Sorry, the AI helper didn't answer in time.").response
+    if got.get("why") == "off":
+        return hand_off(handler_input, text)
+    if not got.get("ok"):
+        log.warning("Peach Banana: the AI helper failed: %s", got)
+        return rb.speak("Sorry, the AI helper couldn't answer that.").response
+    # (kept so a follow-up continues the same conversation)
+    at["ai_chat"] = got.get("conversation_id", "")
+    return rb.speak(_spoken(got["answer"])).response
 
 
 def _spoken(answer):
