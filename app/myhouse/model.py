@@ -20,6 +20,18 @@ VOLUME_INTENT = {"name": "VolumeIntent", "slots": [{"name": "dir", "type": "VOLU
                              "volume to {level}", "volume {level}", "turn the volume to {level}", "change the volume to {level}"]}
 
 
+# QUESTIONS FOR THE AI HELPER (the user, 31 Oct): Alexa only passes on free words after fixed ones, and the fixed ones are
+# lost, so each opening is its own intent; handlers.AskAI puts them back. Exact samples above still win ("what's the time").
+ASK_INTENTS = {"AskIntent": ("", ["ask {q}", "ask about {q}", "question {q}"]),
+               "AskTellIntent": ("tell me", ["tell me {q}"]),
+               "AskWhatIntent": ("what is", ["what is {q}", "what's {q}"]),
+               "AskWhoIntent": ("who is", ["who is {q}", "who's {q}"]),
+               "AskWhyIntent": ("why", ["why {q}"]),
+               "AskHowIntent": ("how", ["how {q}"]),
+               "AskWhereIntent": ("where", ["where {q}"]),
+               "AskWhenIntent": ("when", ["when {q}"])}
+
+
 def interaction_model():
     R = "{room}"
     intents = [
@@ -56,6 +68,7 @@ def interaction_model():
                      "what time is the alarm", "what alarms do i have", "what timers do i have"]},
         {"name": "TimeIntent", "slots": [], "samples": ["what time is it", "what's the time", "what is the time", "tell me the time"]},
         VOLUME_INTENT,
+        *[{"name": n, "slots": [{"name": "q", "type": "AMAZON.SearchQuery"}], "samples": samples} for n, (_w, samples) in ASK_INTENTS.items()],
         {"name": "AMAZON.HelpIntent", "samples": []}, {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []}, {"name": "AMAZON.FallbackIntent", "samples": []},
         {"name": "AMAZON.NavigateHomeIntent", "samples": []},

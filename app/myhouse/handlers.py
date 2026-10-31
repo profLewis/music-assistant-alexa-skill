@@ -1,7 +1,9 @@
 """MyHouse skill handlers. On a screen: draw the page, leave the session open WITHOUT a reprompt (no microphone),
 redraw after each tap / every 30 s. Without a screen: just say it."""
 
+import html
 import logging
+import re
 import time
 
 from ask_sdk_core.dispatch_components import AbstractExceptionHandler, AbstractRequestHandler
@@ -10,7 +12,7 @@ from ask_sdk_core.utils import get_slot_value, is_intent_name, is_request_type
 from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
 from ask_sdk_model.interfaces.alexa.presentation.html import Configuration, StartDirective, StartRequest, StartRequestMethod
 
-from . import actions, alerts, apl, deploy, pages, widgets
+from . import actions, alerts, apl, deploy, ha, model, pages, widgets
 
 log = logging.getLogger("myhouse")
 INTENT_PAGE = {"LightsOnIntent": "lights", "LightsOffIntent": "lights", "BoostIntent": "heating", "EndBoostIntent": "heating",
@@ -408,6 +410,36 @@ class HandOff(AbstractRequestHandler):
         return hand_off(handler_input, text)
 
 
+class AskAI(AbstractRequestHandler):
+    """Free questions go to the AI helper, so the session stays open; with it off, Alexa is given the words (the panel closes)."""
+
+    def can_handle(self, handler_input):
+        return any(is_intent_name(n)(handler_input) for n in model.ASK_INTENTS)
+
+    def handle(self, handler_input):
+        word = model.ASK_INTENTS[handler_input.request_envelope.request.intent.name][0]
+        q = get_slot_value(handler_input, "q")
+        text = f"{word} {q}".strip() if q else None
+        if not text:
+            return hand_off(handler_input)
+        rb = handler_input.response_builder
+        try:
+            got = ha.ask_ai(text)
+        except Exception:
+            log.exception("Peach Banana: the AI helper didn't answer")
+            return rb.speak("Sorry, the AI helper didn't answer in time.").response
+        if got.get("why") == "off":
+            return hand_off(handler_input, text)
+        if not got.get("ok"):
+            log.warning("Peach Banana: the AI helper failed: %s", got)
+            return rb.speak("Sorry, the AI helper couldn't answer that.").response
+        return rb.speak(_spoken(got["answer"])).response
+
+
+def _spoken(answer):
+    return html.escape(re.sub(r"[*_#`]", "", answer), quote=False)
+
+
 class Time(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_intent_name("TimeIntent")(handler_input)
@@ -454,7 +486,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()

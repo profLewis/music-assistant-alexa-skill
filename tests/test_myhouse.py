@@ -271,3 +271,39 @@ def test_unmatched_page_is_not_ours(house):
 def test_model_has_the_alexa_jobs():
     names = {i["name"] for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"]}
     assert {"AlarmIntent", "TimerIntent", "AlarmOpIntent", "AMAZON.FallbackIntent"} <= names
+
+
+def _said(r):
+    return r["response"]["outputSpeech"]["ssml"]
+
+
+def test_ask_ai_puts_the_opening_back_and_stays_open(house, monkeypatch):
+    asked = []
+    monkeypatch.setattr(ha, "ask_ai", lambda t: asked.append(t) or {"ok": True, "answer": "**Fish** & chips"})
+    r = run("IntentRequest", "AskTellIntent", slots={"q": "a joke"})
+    assert asked == ["tell me a joke"]
+    assert "Fish &amp; chips" in _said(r)
+    assert not r["response"].get("shouldEndSession")
+
+
+def test_ask_ai_off_gives_alexa_the_words(house, monkeypatch):
+    monkeypatch.setattr(ha, "ask_ai", lambda t: {"ok": False, "why": "off", "answer": ""})
+    said = []
+    monkeypatch.setattr(handlers, "hand_off", lambda hi, text=None: said.append(text) or hi.response_builder.response)
+    run("IntentRequest", "AskWhyIntent", slots={"q": "is the sky blue"})
+    assert said == ["why is the sky blue"]
+
+
+def test_ask_ai_too_slow_keeps_the_panel(house, monkeypatch):
+    def slow(t):
+        raise TimeoutError
+    monkeypatch.setattr(ha, "ask_ai", slow)
+    r = run("IntentRequest", "AskIntent", slots={"q": "anything"})
+    assert "didn't answer" in _said(r).replace("&#x27;", "'")
+    assert not r["response"].get("shouldEndSession")
+
+
+def test_model_has_the_ask_intents():
+    names = {i["name"]: i for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"]}
+    for n in model.ASK_INTENTS:
+        assert names[n]["slots"][0]["type"] == "AMAZON.SearchQuery"
