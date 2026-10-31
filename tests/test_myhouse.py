@@ -253,19 +253,25 @@ def test_timer_duration_in_words(house, alerts_refused):
     assert handlers._clock("19:00") == "7 pm" and handlers._clock("00:15") == "12:15 am"
 
 
-def test_fallback_hands_over_and_asks_to_say_it_again(house):
-    r = run("IntentRequest", "AMAZON.FallbackIntent")["response"]
+def test_fallback_asks_again_once_then_hands_over(house):
+    r = run("IntentRequest", "AMAZON.FallbackIntent")
+    assert not r["response"].get("shouldEndSession") and r["sessionAttributes"]["asked_again"] and not _handoff(house)
+    ev = build_event("IntentRequest", "AMAZON.FallbackIntent", {}, True, SHOW, "en-GB")
+    ev["session"]["attributes"] = {"asked_again": True}
+    r = json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))["response"]
     assert r["shouldEndSession"] is True and "say that again" in r["outputSpeech"]["ssml"]
     v = _handoff(house)
     assert v[0]["text"] == "" and v[0]["back_after"] == 60
 
 
-def test_unmatched_page_is_not_ours(house):
+def test_unmatched_page_tries_the_ai_first(house, monkeypatch):
+    asked = []
+    monkeypatch.setattr(ha, "ask_ai", lambda t, c="": asked.append(t) or {"ok": True, "answer": "Yes", "conversation_id": ""})
     ev = build_event("IntentRequest", "ShowPageIntent", {}, True, SHOW, "en-GB")
-    ev["request"]["intent"]["slots"] = {"page": {"name": "page", "value": "an alarm", "resolutions": {"resolutionsPerAuthority": [
+    ev["request"]["intent"]["slots"] = {"page": {"name": "page", "value": "some bananas", "resolutions": {"resolutionsPerAuthority": [
         {"authority": "x", "status": {"code": "ER_SUCCESS_NO_MATCH"}}]}}}
     out = json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))
-    assert out["response"]["shouldEndSession"] is True and _handoff(house)
+    assert asked == ["some bananas"] and not out["response"].get("shouldEndSession") and not _handoff(house)
 
 
 def test_model_has_the_alexa_jobs():

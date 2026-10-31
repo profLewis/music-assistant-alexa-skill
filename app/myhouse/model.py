@@ -29,26 +29,15 @@ ASK_INTENTS = {"AskIntent": ("", ["ask {q}", "ask about {q}", "question {q}"]),
                "AskWhyIntent": ("why", ["why {q}"]),
                "AskHowIntent": ("how", ["how {q}"]),
                "AskWhereIntent": ("where", ["where {q}"]),
-               "AskWhenIntent": ("when", ["when {q}"]),
-               # (the user, 31 Oct: "what does a banana look like" went to Alexa: no opening matched, and Alexa doesn't send the words of what it can't place)
-               "AskWhatOpenIntent": ("what", ["what {q}"]),
-               "AskWhichOpenIntent": ("which", ["which {q}"]),
-               "AskIsOpenIntent": ("is", ["is {q}"]),
-               "AskAreOpenIntent": ("are", ["are {q}"]),
-               "AskCanOpenIntent": ("can", ["can {q}"]),
-               "AskCouldOpenIntent": ("could", ["could {q}"]),
-               "AskDoOpenIntent": ("do", ["do {q}"]),
-               "AskDoesOpenIntent": ("does", ["does {q}"]),
-               "AskDidOpenIntent": ("did", ["did {q}"]),
-               "AskWillOpenIntent": ("will", ["will {q}"]),
-               "AskWouldOpenIntent": ("would", ["would {q}"]),
-               "AskShouldOpenIntent": ("should", ["should {q}"]),
-               "AskHasOpenIntent": ("has", ["has {q}"]),
-               "AskHaveOpenIntent": ("have", ["have {q}"]),
-               "AskExplainOpenIntent": ("explain", ["explain {q}"]),
-               "AskDescribeOpenIntent": ("describe", ["describe {q}"]),
-               "AskDefineOpenIntent": ("define", ["define {q}"]),
-               "AskGiveIntent": ("give me", ["give me {q}"])}
+               "AskWhenIntent": ("when", ["when {q}"])}
+# (the user, 31 Oct: "what does a banana look like" went to Alexa, who doesn't tell a skill what it can't place; "a much wider range
+# of phrases"): a skill can't catch just anything, each needs its own opening. Words that start a job the panel does itself aren't here.
+OPENINGS = ["what", "which", "whose", "who are", "who was", "how's", "where's", "when's", "why's", "is", "are", "am", "was", "were", "can", "could",
+            "do", "does", "did", "will", "would", "should", "shall", "has", "have", "had", "may", "might", "must", "explain", "describe", "define",
+            "translate", "convert", "calculate", "compare", "summarise", "spell", "pronounce", "recommend", "suggest", "name", "list", "find", "search for",
+            "look up", "google", "say", "give me", "teach me", "help me", "write", "make up", "i", "i'm", "i'd", "my", "we", "you", "your", "let's", "please", "hey", "okay"]
+for _w in OPENINGS:
+    ASK_INTENTS["Ask" + "".join(x.capitalize() for x in _w.replace("'", " ").split()) + "OpenIntent"] = (_w, [_w + " {q}"])
 
 
 def interaction_model():
