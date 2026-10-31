@@ -44,9 +44,9 @@ def call(domain, service, data=None):
     return r.json()
 
 
-def alert(action, kind="", at=0):
+def alert(action, kind="", at=0, secs=0):
     """script.peach_alert: timers and alarms kept by the house ({ok, count, items: [{k, a}]}), so no Alexa permission is needed. Raises if it fails."""
-    r = requests.post(f"{BASE}/services/script/peach_alert?return_response", headers=_headers(), json={"action": action, "kind": kind, "at": at}, timeout=3)
+    r = requests.post(f"{BASE}/services/script/peach_alert?return_response", headers=_headers(), json={"action": action, "kind": kind, "at": at, "secs": secs}, timeout=3)
     r.raise_for_status()
     return r.json().get("service_response") or {}
 
