@@ -279,15 +279,16 @@ def _said(r):
 
 def test_ask_ai_puts_the_opening_back_and_stays_open(house, monkeypatch):
     asked = []
-    monkeypatch.setattr(ha, "ask_ai", lambda t: asked.append(t) or {"ok": True, "answer": "**Fish** & chips"})
+    monkeypatch.setattr(ha, "ask_ai", lambda t, c="": asked.append(t) or {"ok": True, "answer": "**Fish** & chips", "conversation_id": "chat1"})
     r = run("IntentRequest", "AskTellIntent", slots={"q": "a joke"})
     assert asked == ["tell me a joke"]
     assert "Fish &amp; chips" in _said(r)
     assert not r["response"].get("shouldEndSession")
+    assert r["sessionAttributes"]["ai_chat"] == "chat1"
 
 
 def test_ask_ai_off_gives_alexa_the_words(house, monkeypatch):
-    monkeypatch.setattr(ha, "ask_ai", lambda t: {"ok": False, "why": "off", "answer": ""})
+    monkeypatch.setattr(ha, "ask_ai", lambda t, c="": {"ok": False, "why": "off", "answer": ""})
     said = []
     monkeypatch.setattr(handlers, "hand_off", lambda hi, text=None: said.append(text) or hi.response_builder.response)
     run("IntentRequest", "AskWhyIntent", slots={"q": "is the sky blue"})
@@ -295,7 +296,7 @@ def test_ask_ai_off_gives_alexa_the_words(house, monkeypatch):
 
 
 def test_ask_ai_too_slow_keeps_the_panel(house, monkeypatch):
-    def slow(t):
+    def slow(t, c=""):
         raise TimeoutError
     monkeypatch.setattr(ha, "ask_ai", slow)
     r = run("IntentRequest", "AskIntent", slots={"q": "anything"})
