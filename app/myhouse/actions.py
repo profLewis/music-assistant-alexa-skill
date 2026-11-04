@@ -70,9 +70,32 @@ def _players():
     return [lead] + extra if ha.state("input_select.ma_multi_mode") != "lead" else [lead]
 
 
+def _shift():
+    """the rewound BBC radio the Moon's panel plays itself (www/radio-shift.js: input_text.radio_shift JSON), or None"""
+    import json as _j
+    try:
+        v = _j.loads(ha.state("input_text.radio_shift") or "{}")
+        return v if v.get("sid") else None
+    except ValueError:
+        return None
+
+
 def music(act):
     act = (act or "").lower()
     ps = _players()
+    # (REWOUND RADIO - the user, 4 Nov 2026: "alexa stop or pause while the player plays should stop / pause it": the panel plays it,
+    #  not Music Assistant - pause keeps the place, play carries on, stop goes back to live and stops)
+    sh = _shift()
+    if sh and act in ("pause", "stop", "play", "resume", "play_pause"):
+        import json as _j, time as _t
+        now = int(_t.time()); behind = int(sh.get("off", 0)) + (now - int(sh.get("t", now)) if sh.get("p") else 0)
+        if act == "stop":
+            ha.call("input_text", "set_value", {"entity_id": "input_text.radio_shift", "value": ""})
+            ha.call("media_player", "media_pause", {"entity_id": ps})
+        else:
+            pause = act == "pause" or (act == "play_pause" and not sh.get("p"))
+            ha.call("input_text", "set_value", {"entity_id": "input_text.radio_shift", "value": _j.dumps({"sid": sh["sid"], "off": behind, "t": now, "p": 1 if pause else 0})})
+        return None
     svc = {"pause": "media_pause", "stop": "media_pause", "play": "media_play", "resume": "media_play", "play_pause": "media_play_pause",
            "next": "media_next_track", "skip": "media_next_track", "previous": "media_previous_track", "back": "media_previous_track"}.get(act)
     if svc:

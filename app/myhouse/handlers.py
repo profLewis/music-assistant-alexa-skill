@@ -580,6 +580,9 @@ class PlayThis(AbstractRequestHandler):
 
 def _music_playing():
     try:
+        sh = actions._shift()
+        if sh and not sh.get("p"):
+            return True   # (the rewound radio, played by the panel itself)
         return any(ha.state(p) == "playing" for p in actions._players())
     except Exception:
         log.exception("Peach Banana: couldn't see the music")
