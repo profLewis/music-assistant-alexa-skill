@@ -417,3 +417,14 @@ def test_full_panel_is_never_covered(house, monkeypatch):
     monkeypatch.setattr(actions, "room_lights", lambda r, on=None: "Kitchen lights on.")
     r = run("IntentRequest", "LightsOnIntent", slots={"room": "kitchen"})["response"]
     assert not any((d.get("type") or "").startswith("Alexa.Presentation.APL") for d in (r.get("directives") or []))
+
+
+def test_listening_window_only_when_quiet(house, monkeypatch):
+    from myhouse import handlers as H
+    states = {"input_boolean.peach_listen": "on", "media_player.the_moon_screen": "idle"}
+    monkeypatch.setattr(ha, "state", lambda e, d=None: states.get(e, d))
+    r = run("IntentRequest", "TimeIntent")["response"]
+    assert r.get("reprompt") and r.get("shouldEndSession") is False
+    states["media_player.the_moon_screen"] = "playing"
+    r = run("IntentRequest", "TimeIntent")["response"]
+    assert not r.get("reprompt")
