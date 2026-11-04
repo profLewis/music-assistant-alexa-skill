@@ -66,6 +66,18 @@ def _reply(handler_input, say=None, page=None, keep=True):
     rb = handler_input.response_builder
     if say:
         rb.speak(say)
+    # THE FULL PANEL OPEN (an Echo Show with the web app - HTML): never draw the old built-in screens over it (the user, 4 Nov 2026:
+    # "a weird version of Peach Banana is running on the Moon" - a lights / heating answer replaced the panel with them). Speak,
+    # and turn the panel itself to that page (input_text.show_remote, read by the panel); the session stays open.
+    if _html(handler_input):
+        dash = {"heating": "rads", "lights": "lights", "music": "music", "home": "home"}.get(page or "")
+        if dash:
+            try:
+                import time as _t
+                ha.call("input_text", "set_value", {"entity_id": "input_text.show_remote", "value": f"{int(_t.time())} {dash}"})
+            except Exception:
+                log.exception("Peach Banana: turning the panel to %s", dash)
+        return rb.response
     if _screen(handler_input):
         p = _page(handler_input, page)
         try:
