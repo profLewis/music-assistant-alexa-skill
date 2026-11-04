@@ -510,6 +510,24 @@ class Time(AbstractRequestHandler):
         return handler_input.response_builder.speak(f"It's {_clock(datetime.now(tz.gettz(alerts.ZONE)).strftime('%H:%M'))}.").response
 
 
+class GoodMorning(AbstractRequestHandler):
+    """"Alexa, good morning": what the house says it does (script.peach_good_morning - the time, then Radio 4 on the panel).
+    The house failing still gets a good morning and the time."""
+    def can_handle(self, handler_input):
+        return is_intent_name("GoodMorningIntent")(handler_input)
+
+    def handle(self, handler_input):
+        from datetime import datetime
+        from dateutil import tz
+        now = _clock(datetime.now(tz.gettz(alerts.ZONE)).strftime('%H:%M'))
+        try:
+            say = ha.good_morning().get("say") or f"Good morning. It's {now}."
+        except Exception:
+            log.exception("Peach Banana: good morning didn't reach the house")
+            say = f"Good morning. It's {now}. Sorry, the house didn't answer, so there's no radio."
+        return handler_input.response_builder.speak(_spoken(say)).response
+
+
 class Help(AbstractRequestHandler):
     def can_handle(self, handler_input):
         return is_intent_name("AMAZON.HelpIntent")(handler_input)
@@ -586,7 +604,7 @@ class Oops(AbstractExceptionHandler):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_exception_handler(Oops())
     return sb.create()

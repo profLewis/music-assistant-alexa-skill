@@ -75,6 +75,10 @@ def interaction_model():
          "samples": ["how long is left on the timer", "how long left on the timer", "how much time is left", "how long is left",
                      "what time is the alarm", "what alarms do i have", "what timers do i have"]},
         {"name": "TimeIntent", "slots": [], "samples": ["what time is it", "what's the time", "what is the time", "tell me the time"]},
+        # (the user, 4 Nov 2026: "when I say 'alexa good morning' in the morning that should all happen in Peach Banana too" -
+        # with the panel open, Peach Banana hears it before any Alexa routine; it took it for an alarm and asked "what time?")
+        {"name": "GoodMorningIntent", "slots": [], "samples": ["good morning", "morning", "good morning to you", "morning all",
+                                                               "hello good morning", "good morning everyone"]},
         VOLUME_INTENT,
         *[{"name": n, "slots": [{"name": "q", "type": "AMAZON.SearchQuery"}], "samples": samples} for n, (_w, samples) in ASK_INTENTS.items()],
         # (the user, 31 Oct: "when someone says alexa play xxx, route that through peach banana": heard while the panel is open)
