@@ -6,7 +6,7 @@ import logging
 import re
 import time
 
-from ask_sdk_core.dispatch_components import AbstractExceptionHandler, AbstractRequestHandler
+from ask_sdk_core.dispatch_components import AbstractExceptionHandler, AbstractRequestHandler, AbstractResponseInterceptor
 from ask_sdk_core.skill_builder import SkillBuilder
 from ask_sdk_core.utils import get_slot_value, is_intent_name, is_request_type
 from ask_sdk_model.interfaces.alexa.presentation.apl import RenderDocumentDirective
@@ -624,9 +624,33 @@ class Oops(AbstractExceptionHandler):
         return handler_input.response_builder.speak("Sorry, something went wrong in MyHouse.").set_should_end_session(True).response
 
 
+class ListeningWindow(AbstractResponseInterceptor):
+    """THE LISTENING WINDOW (the user, 4 Nov 2026: "can't you do it in Peach Banana - so I needn't say Alexa" - "go on, but make sure
+    it doesn't interfere with what's playing"): after Peach Banana SPEAKS an answer, the microphone stays open about 8 s (the
+    blue ring) so the next thing can be said without "Alexa" - each answer opens a new window. Only when NOTHING is playing on
+    the Moon (its Peach Banana speaker, or the Echo itself): listening would duck the music. Never on a reply that ends the
+    session or starts music; the reprompt is silent (no "anything else?"). input_boolean.peach_listen switches it off."""
+    def process(self, handler_input, response):
+        try:
+            if response is None or response.output_speech is None or response.should_end_session is True or response.reprompt is not None:
+                return
+            if (response.directives or []) and any("AudioPlayer" in type(d).__name__ for d in response.directives):
+                return
+            if ha.state("input_boolean.peach_listen", "on") == "off":
+                return
+            if any(ha.state(p) == "playing" for p in ("media_player.the_moon_screen", "media_player.the_moon", "media_player.kitchen_the_moon")):
+                return
+            from ask_sdk_model.ui import Reprompt, SsmlOutputSpeech
+            response.reprompt = Reprompt(output_speech=SsmlOutputSpeech(ssml='<speak><break time="1ms"/></speak>'))
+            response.should_end_session = False
+        except Exception:
+            log.exception("Peach Banana: listening window")
+
+
 def build():
     sb = SkillBuilder()
     for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
+    sb.add_global_response_interceptor(ListeningWindow())
     sb.add_exception_handler(Oops())
     return sb.create()
