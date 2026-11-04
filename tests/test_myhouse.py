@@ -40,6 +40,7 @@ def _house_not_reached(monkeypatch):
     monkeypatch.setattr(ha, "alert", refuse)
     monkeypatch.setattr(ha, "ask_ai", refuse)
     monkeypatch.setattr(ha, "play_this", refuse)
+    monkeypatch.setattr(ha, "good_morning", refuse)
 
 
 def run(req_type, intent=None, extra=None, iface=SHOW, slots=None):
@@ -367,3 +368,23 @@ def test_stop_stops_the_music_and_keeps_the_panel(house, monkeypatch):
     assert done == ["pause"] and not r.get("shouldEndSession")
     monkeypatch.setattr(handlers, "_music_playing", lambda: False)
     assert run("IntentRequest", "AMAZON.StopIntent")["response"]["shouldEndSession"] is True
+
+
+def test_good_morning_is_the_house_s_and_stays_open(house, monkeypatch):
+    monkeypatch.setattr(ha, "good_morning", lambda: {"say": "Good morning. It's twenty past seven. Here's Radio 4."})
+    r = run("IntentRequest", "GoodMorningIntent")["response"]
+    assert "Here's Radio 4" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
+
+
+def test_good_morning_without_the_house_still_says_the_time(house, monkeypatch):
+    def boom():
+        raise OSError("no")
+    monkeypatch.setattr(ha, "good_morning", boom)
+    r = run("IntentRequest", "GoodMorningIntent")["response"]
+    assert "Good morning" in r["outputSpeech"]["ssml"] and "didn't answer" in r["outputSpeech"]["ssml"]
+
+
+def test_good_morning_is_in_the_model():
+    from myhouse import model as m
+    names = [i["name"] for i in m.interaction_model()["interactionModel"]["languageModel"]["intents"]]
+    assert "GoodMorningIntent" in names
