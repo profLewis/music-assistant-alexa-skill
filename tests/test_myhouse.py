@@ -408,3 +408,12 @@ def test_turn_on_is_in_the_model():
     from myhouse import model as m
     pt = [i for i in m.interaction_model()["interactionModel"]["languageModel"]["intents"] if i["name"] == "PlayThisIntent"][0]
     assert "turn on {what}" in pt["samples"] and "tune in to {what}" in pt["samples"]
+
+
+def test_full_panel_is_never_covered(house, monkeypatch):
+    """on an HTML device (the web-app panel open) an answer speaks and turns the panel's page - no APL RenderDocument"""
+    from myhouse import handlers as H
+    monkeypatch.setattr(H, "_html", lambda hi: True)
+    monkeypatch.setattr(actions, "room_lights", lambda r, on=None: "Kitchen lights on.")
+    r = run("IntentRequest", "LightsOnIntent", slots={"room": "kitchen"})["response"]
+    assert not any((d.get("type") or "").startswith("Alexa.Presentation.APL") for d in (r.get("directives") or []))
