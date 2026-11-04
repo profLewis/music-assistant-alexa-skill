@@ -83,7 +83,10 @@ def interaction_model():
         *[{"name": n, "slots": [{"name": "q", "type": "AMAZON.SearchQuery"}], "samples": samples} for n, (_w, samples) in ASK_INTENTS.items()],
         # (the user, 31 Oct: "when someone says alexa play xxx, route that through peach banana": heard while the panel is open)
         {"name": "PlayThisIntent", "slots": [{"name": "what", "type": "AMAZON.SearchQuery"}],
-         "samples": ["play {what}", "play me {what}", "play some {what}", "put on {what}", "listen to {what}"]},
+         # (the user, 4 Nov 2026: "'alexa turn on radio 4' or 'turn on the radio' treated the same as play radio 4 - in the radio on the
+         # Moon"; and the Archers: "play the most recent archers, last week's one" - the house's script.peach_play works out which)
+         "samples": ["play {what}", "play me {what}", "play some {what}", "put on {what}", "listen to {what}", "turn on {what}", "switch on {what}",
+                     "put {what} on", "tune in to {what}", "tune to {what}", "tune into {what}", "start {what}", "i want to hear {what}"]},
         {"name": "AMAZON.PauseIntent", "samples": []}, {"name": "AMAZON.ResumeIntent", "samples": []},
         {"name": "AMAZON.HelpIntent", "samples": []}, {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []}, {"name": "AMAZON.FallbackIntent", "samples": []},

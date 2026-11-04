@@ -388,3 +388,23 @@ def test_good_morning_is_in_the_model():
     from myhouse import model as m
     names = [i["name"] for i in m.interaction_model()["interactionModel"]["languageModel"]["intents"]]
     assert "GoodMorningIntent" in names
+
+
+def test_turn_on_the_lights_is_not_music(house, monkeypatch):
+    monkeypatch.setattr(ha, "play_this", lambda t: (_ for _ in ()).throw(AssertionError("played music")))
+    monkeypatch.setattr(actions, "room_lights", lambda r, on=None: "Kitchen lights on.")
+    r = run("IntentRequest", "PlayThisIntent", slots={"what": "the kitchen lights"})["response"]
+    assert "Kitchen lights on" in r["outputSpeech"]["ssml"]
+
+
+def test_turn_on_radio_is_played(house, monkeypatch):
+    asked = []
+    monkeypatch.setattr(ha, "play_this", lambda t: asked.append(t) or {"ok": True, "name": "BBC Radio 4", "kind": "radio"})
+    r = run("IntentRequest", "PlayThisIntent", slots={"what": "radio four"})["response"]
+    assert asked == ["radio four"] and "Playing BBC Radio 4" in r["outputSpeech"]["ssml"]
+
+
+def test_turn_on_is_in_the_model():
+    from myhouse import model as m
+    pt = [i for i in m.interaction_model()["interactionModel"]["languageModel"]["intents"] if i["name"] == "PlayThisIntent"][0]
+    assert "turn on {what}" in pt["samples"] and "tune in to {what}" in pt["samples"]

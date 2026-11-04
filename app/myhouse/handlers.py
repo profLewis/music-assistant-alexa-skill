@@ -546,6 +546,16 @@ class PlayThis(AbstractRequestHandler):
         what = get_slot_value(handler_input, "what")
         if not what:
             return rb.speak("What would you like to play?").response
+        # ("turn on the kitchen lights" is the LIGHTS, not music to play - "turn on {what}" catches it too)
+        import re as _re
+        if _re.search(r"\blights?\b|\blamps?\b", what.lower()):
+            rm = _re.sub(r"\b(the|lights?|lamps?|on|in|all)\b", " ", what.lower()).strip()
+            try:
+                say = actions.room_lights(rm, True) if rm else actions.all_lights(True)
+            except Exception:
+                log.exception("Peach Banana: lights from turn on")
+                say = "Sorry, the house didn't answer."
+            return _reply(handler_input, say, "lights")
         try:
             got = ha.play_this(what)
         except Exception:
