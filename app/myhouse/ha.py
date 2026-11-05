@@ -51,9 +51,11 @@ def alert(action, kind="", at=0, secs=0):
     return r.json().get("service_response") or {}
 
 
-def play_this(text):
-    """script.peach_play: the best match for the words starts playing ({ok, name, kind}). Raises if it fails."""
-    r = requests.post(f"{BASE}/services/script/peach_play?return_response", headers=_headers(), json={"text": text}, timeout=6.5)
+def play_this(text, ma_player_id=None):
+    """script.peach_play: the best match for the words starts playing ({ok, name, kind}) - on that Music Assistant player
+    when given (the Echo that was asked), else on the house's chosen one. Raises if it fails."""
+    body = {"text": text, **({"ma_player_id": ma_player_id} if ma_player_id else {})}
+    r = requests.post(f"{BASE}/services/script/peach_play?return_response", headers=_headers(), json=body, timeout=6.5)
     r.raise_for_status()
     return r.json().get("service_response") or {}
 
