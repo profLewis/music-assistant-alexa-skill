@@ -60,6 +60,13 @@ def play_this(text, ma_player_id=None):
     return r.json().get("service_response") or {}
 
 
+def shopping(op, item):
+    """script.peach_shopping: add to / take off ALEXA'S OWN shopping list ({ok, item}). Raises if it fails."""
+    r = requests.post(f"{BASE}/services/script/peach_shopping?return_response", headers=_headers(), json={"op": op, "item": item}, timeout=6.5)
+    r.raise_for_status()
+    return r.json().get("service_response") or {}
+
+
 def good_morning():
     """script.peach_good_morning: what "Alexa, good morning" does, kept by the house ({say}) - the time, Radio 4 on the panel. Raises if it fails."""
     r = requests.post(f"{BASE}/services/script/peach_good_morning?return_response", headers=_headers(), json={}, timeout=6.5)
