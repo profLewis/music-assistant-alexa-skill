@@ -604,6 +604,14 @@ def play_this(handler_input, what):
             mine = get_player_for_device(env.context.system.device.device_id)
         except Exception:
             log.exception("Peach Banana: which player is this Echo")
+    if not _html(handler_input) and not mine:
+        # (which Echo this is, the house can tell from its voice logs: script.peach_play_here plays it there)
+        try:
+            ha.call("script", "turn_on", {"entity_id": "script.peach_play_here", "variables": {"text": what}})
+        except Exception:
+            log.exception("Peach Banana: play here %s", what)
+            return rb.speak("Sorry, the house didn't answer.").set_should_end_session(True).response
+        return rb.speak("OK.").set_should_end_session(True).response
     try:
         got = ha.play_this(what, mine)
     except Exception:
