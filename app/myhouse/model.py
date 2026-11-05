@@ -110,7 +110,9 @@ def interaction_model():
          "samples": [s.replace("VERB", v) for v in ["play", "turn on", "put on", "switch on", "start", "listen to", "tune to", "tune in to",
                                                      "tune into", "i want", "i want to hear", "can you play", "could you play", "please play", "play me"]
                      for s in ["VERB {station}", "VERB the {station}", "VERB bbc {station}"]]
-                    + ["{station} please", "put {station} on", "put the {station} on", "turn {station} on", "switch {station} on"]},
+                    + ["{station} please", "put {station} on", "put the {station} on", "turn {station} on", "switch {station} on",
+                       # (just the station, 5 Nov 2026: "alexa bbc radio 4" went to Alexa's own player)
+                       "{station}", "bbc {station}", "the {station}", "{station} now", "bbc {station} please"]},
         # BOOKS AND PODCASTS (the user, 5 Nov 2026: "include audible and similar") - Alexa keeps "read my book" / "play audible" for its
         # own Audible player unless Peach Banana's words match better
         {"name": "MyBookIntent", "slots": [],
