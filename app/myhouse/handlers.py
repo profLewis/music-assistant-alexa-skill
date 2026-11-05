@@ -487,7 +487,17 @@ class AskAI(AbstractRequestHandler):
         text = f"{word} {q}".strip() if q else None
         if not text:
             return hand_off(handler_input)
-        return ask_ai_said(handler_input, text)
+        # ("Alexa, ask peach banana to play radio four" said WITH the panel open lands here as a question - 5 Nov 2026 the AI
+        #  answered "I'm not quite sure what you'd like me to do". The skill's own name is dropped, and play / turn on goes to
+        #  the player, as "play {what}" does.)
+        rest = re.sub(r"^(ask|tell)?\s*(the\s+)?peach(es)?\s*bananas?\s*(to\s+|and\s+)?", "", text.strip(), flags=re.I).strip()
+        if rest != text.strip():
+            if not rest:
+                return _reply(handler_input, "Yes?")
+            m = re.match(r"^(please\s+)?(play|put on|turn on|switch on|start|listen to|tune (?:in )?to)\s+(.+)$", rest, re.I)
+            if m:
+                return play_this(handler_input, m.group(3))
+        return ask_ai_said(handler_input, rest or text)
 
 
 def ask_ai_said(handler_input, text):
@@ -554,31 +564,34 @@ class PlayThis(AbstractRequestHandler):
         return is_intent_name("PlayThisIntent")(handler_input)
 
     def handle(self, handler_input):
-        rb = handler_input.response_builder
-        what = get_slot_value(handler_input, "what")
-        if not what:
-            return rb.speak("What would you like to play?").response
-        # ("turn on the kitchen lights" is the LIGHTS, not music to play - "turn on {what}" catches it too)
-        import re as _re
-        if _re.search(r"\blights?\b|\blamps?\b", what.lower()):
-            rm = _re.sub(r"\b(the|lights?|lamps?|on|in|all)\b", " ", what.lower()).strip()
-            try:
-                say = actions.room_lights(rm, True) if rm else actions.all_lights(True)
-            except Exception:
-                log.exception("Peach Banana: lights from turn on")
-                say = "Sorry, the house didn't answer."
-            return _reply(handler_input, say, "lights")
+        return play_this(handler_input, get_slot_value(handler_input, "what"))
+
+
+def play_this(handler_input, what):
+    rb = handler_input.response_builder
+    if not what:
+        return rb.speak("What would you like to play?").response
+    # ("turn on the kitchen lights" is the LIGHTS, not music to play - "turn on {what}" catches it too)
+    import re as _re
+    if _re.search(r"\blights?\b|\blamps?\b", what.lower()):
+        rm = _re.sub(r"\b(the|lights?|lamps?|on|in|all)\b", " ", what.lower()).strip()
         try:
-            got = ha.play_this(what)
+            say = actions.room_lights(rm, True) if rm else actions.all_lights(True)
         except Exception:
-            log.exception("Peach Banana: couldn't play %s", what)
-            return rb.speak("Sorry, Music Assistant didn't answer.").response
-        if not got.get("ok"):
-            return rb.speak(f"Sorry, I couldn't find {_spoken(what)}.").response
-        # (music is starting: no listening window after this answer - 5 Nov 2026, "play radio four" with the panel open was
-        #  answered "there was a problem with the requested skill's response" while the music began under an open microphone)
-        handler_input.attributes_manager.request_attributes["music_starting"] = True
-        return rb.speak(f"Playing {_spoken(got.get('name', what))}.").response
+            log.exception("Peach Banana: lights from turn on")
+            say = "Sorry, the house didn't answer."
+        return _reply(handler_input, say, "lights")
+    try:
+        got = ha.play_this(what)
+    except Exception:
+        log.exception("Peach Banana: couldn't play %s", what)
+        return rb.speak("Sorry, Music Assistant didn't answer.").response
+    if not got.get("ok"):
+        return rb.speak(f"Sorry, I couldn't find {_spoken(what)}.").response
+    # (music is starting: no listening window after this answer - 5 Nov 2026, "play radio four" with the panel open was
+    #  answered "there was a problem with the requested skill's response" while the music began under an open microphone)
+    handler_input.attributes_manager.request_attributes["music_starting"] = True
+    return rb.speak(f"Playing {_spoken(got.get('name', what))}.").response
 
 
 def _music_playing():
