@@ -98,7 +98,10 @@ def interaction_model():
         {"name": "PAGE", "values": [{"name": {"value": "home", "synonyms": ["the house", "summary", "front page"]}},
                                     {"name": {"value": "lights", "synonyms": ["the lights", "lighting"]}},
                                     {"name": {"value": "heating", "synonyms": ["radiators", "the heating", "rads", "temperatures"]}},
-                                    {"name": {"value": "music", "synonyms": ["the music", "the player", "what's playing"]}}]},
+                                    {"name": {"value": "music", "synonyms": ["the music", "the player", "what's playing"]}},
+                                    # (apesma, the house's own Music Assistant app - Alexa hears the made-up word many ways: 5 Nov 2026
+                                    #  "open apesma" came out as "Open Ape Smart")
+                                    {"name": {"value": "apesma", "synonyms": ["a pesma", "ape smart", "apes ma", "a pes ma", "music app", "the music app", "music assistant", "the music assistant app"]}}]},
         {"name": "ALERT_OP", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
             ("cancel", ["delete", "remove", "turn off", "switch off"]), ("stop", ["silence"]), ("snooze", []), ("show", ["list"])]]},
         {"name": "ALERT_THING", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [

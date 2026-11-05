@@ -160,7 +160,9 @@ class ShowPage(AbstractRequestHandler):
             return ask_ai_said(handler_input, said) if said else hand_off(handler_input)
         p = (get_slot_value(handler_input, "page") or "home").lower()
         p = {"radiators": "heating", "rads": "heating", "the heating": "heating", "the lights": "lights", "the music": "music"}.get(p, p)
-        dash = {"home": "home", "lights": "lights", "heating": "energy", "music": "music"}.get(p)
+        if p in ("apesma", "a pesma", "ape smart", "apes ma", "a pes ma", "music app", "the music app", "music assistant", "the music assistant app"):
+            p = "apesma"
+        dash = {"home": "home", "lights": "lights", "heating": "energy", "music": "music", "apesma": "apesma"}.get(p)
         return (_open_dashboard(handler_input, dash) if dash else None) or \
             _reply(handler_input, None if _screen(handler_input) else "Peach Banana needs a screen for that.", p if p in pages.PAGES else "home")
 
@@ -581,8 +583,29 @@ def play_this(handler_input, what):
             log.exception("Peach Banana: lights from turn on")
             say = "Sorry, the house didn't answer."
         return _reply(handler_input, say, "lights")
+    # THE PANEL SHUT, ON THE SHOW (the user, 5 Nov 2026: "I can't have it starting in the R4 player" - the routines send
+    # "ask peach banana to play …" before Alexa's own player can start): open the panel on the Music page, and the house
+    # plays it there as soon as the panel's own speaker is connected (script.peach_play_when_ready) - in the valve radio.
+    env = handler_input.request_envelope
+    if _html(handler_input) and env.session is not None and env.session.new:
+        try:
+            ha.call("script", "turn_on", {"entity_id": "script.peach_play_when_ready", "variables": {"text": what}})
+        except Exception:
+            log.exception("Peach Banana: play when ready %s", what)
+        opened = _open_dashboard(handler_input, "music")
+        if opened is not None:
+            handler_input.attributes_manager.request_attributes["music_starting"] = True
+            return opened
+    # ON AN ECHO WITHOUT THE PANEL: on that Echo (its Music Assistant player, from the add-on's device mapping)
+    mine = None
+    if not _html(handler_input):
+        try:
+            from skill.device_mapping import get_player_for_device
+            mine = get_player_for_device(env.context.system.device.device_id)
+        except Exception:
+            log.exception("Peach Banana: which player is this Echo")
     try:
-        got = ha.play_this(what)
+        got = ha.play_this(what, mine)
     except Exception:
         log.exception("Peach Banana: couldn't play %s", what)
         return rb.speak("Sorry, Music Assistant didn't answer.").response
