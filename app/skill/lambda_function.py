@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import json
 import gettext
 import logging
 import os
@@ -989,6 +990,60 @@ class ResponseLogger(AbstractResponseInterceptor):
         logger.debug("Alexa Response: {}".format(response))
 
 
+class SkillJournal(AbstractRequestInterceptor, AbstractResponseInterceptor):
+    """(fork) EVERY REQUEST AND ANSWER, NOTED IN HOME ASSISTANT (the user, 5 Nov 2026: "when you say 'turn on radio 4' it says
+    'there was a problem with the requested skill's response', then it opens Peach Banana and works the next time - I want
+    it to work right from the start"): the request type, the intent and its slots, a short form of the answer, and - when
+    Alexa rejects an answer - its own error message (a SessionEndedRequest's error). Sent as the event skill_journal, in the
+    background; never slows or breaks an answer."""
+
+    @staticmethod
+    def _send(body):
+        import threading
+        def go():
+            try:
+                import requests
+                base = os.environ.get("MYHOUSE_HA_URL", "http://supervisor/core/api")
+                tok = os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("MYHOUSE_HA_TOKEN", "")
+                requests.post(base + "/events/skill_journal", json=body, headers={"Authorization": "Bearer " + tok}, timeout=4)
+            except Exception:
+                pass
+        threading.Thread(target=go, daemon=True).start()
+
+    def process(self, handler_input, response=None):
+        try:
+            env = handler_input.request_envelope
+            req = env.request
+            ra = handler_input.attributes_manager.request_attributes
+            if response is None and "_journal" not in ra:   # (the request)
+                j = {"type": req.object_type, "rid": (getattr(req, "request_id", "") or "")[-10:],
+                     "new": bool(getattr(env.session, "new", None)) if env.session else None,
+                     "device": ((env.context.system.device.device_id or "")[-10:]) if env.context and env.context.system and env.context.system.device else ""}
+                intent = getattr(req, "intent", None)
+                if intent is not None:
+                    j["intent"] = intent.name
+                    j["slots"] = {k: getattr(v, "value", None) for k, v in (intent.slots or {}).items() if getattr(v, "value", None)}
+                if req.object_type == "SessionEndedRequest":
+                    j["reason"] = str(getattr(req, "reason", ""))
+                    err = getattr(req, "error", None)
+                    if err is not None:
+                        j["error"] = f"{getattr(err, 'object_type', '') or getattr(err, 'type', '')}: {getattr(err, 'message', '')}"[:400]
+                ra["_journal"] = j
+                return
+            j = dict(ra.get("_journal") or {})
+            try:
+                from ask_sdk_core.serialize import DefaultSerializer
+                j["answer"] = json.dumps(DefaultSerializer().serialize(response))[:1200] if response is not None else None
+            except Exception as e:
+                j["answer"] = f"(couldn't show it: {e})"
+            self._send(j)
+        except Exception:
+            logger.exception("skill journal")
+
+
+_journal = SkillJournal()
+
+
 # ###################################################################
 
 
@@ -1030,9 +1085,11 @@ sb.add_exception_handler(CatchAllExceptionHandler())
 # Interceptors
 sb.add_global_request_interceptor(APLSupportRequestInterceptor())
 sb.add_global_request_interceptor(RequestLogger())
+sb.add_global_request_interceptor(_journal)   # (fork: every request and answer noted in Home Assistant - event skill_journal)
 sb.add_global_request_interceptor(LocalizationInterceptor())
 sb.add_global_response_interceptor(ResponseLogger())
 sb.add_global_response_interceptor(screen_app.KeepScreenOpen())
+sb.add_global_response_interceptor(_journal)   # (after the others: the answer as sent)
 
 # AWS Lambda handler
 lambda_handler = sb.lambda_handler()
