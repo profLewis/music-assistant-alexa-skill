@@ -40,6 +40,22 @@ for _w in OPENINGS:
     ASK_INTENTS["Ask" + "".join(x.capitalize() for x in _w.replace("'", " ").split()) + "OpenIntent"] = (_w, [_w + " {q}"])
 
 
+# the BBC stations as script.peach_play knows them (packages/peach_play.yaml), each with the ways it's said
+STATIONS = [
+    ("radio one", ["radio 1", "bbc radio one", "radio one please", "r one"]),
+    ("radio two", ["radio 2", "bbc radio two", "r two"]),
+    ("radio three", ["radio 3", "bbc radio three", "r three"]),
+    ("radio four", ["radio 4", "bbc radio four", "bbc radio 4", "r four", "radio four fm", "bbc four radio"]),
+    ("radio four extra", ["radio 4 extra", "four extra", "bbc radio four extra"]),
+    ("five live", ["radio five live", "5 live", "radio 5 live", "radio five", "bbc five live", "bbc radio five live"]),
+    ("six music", ["radio six music", "6 music", "radio 6 music", "radio six", "bbc six music", "bbc radio six music"]),
+    ("world service", ["the world service", "bbc world service", "world service radio"]),
+    ("radio london", ["bbc london", "bbc radio london"]),
+    ("the archers", ["archers", "the archers omnibus", "the latest archers", "the archers on radio four"]),
+    ("the radio", ["radio", "bbc radio", "the bbc", "the wireless", "some radio"]),
+]
+
+
 def interaction_model():
     R = "{room}"
     intents = [
@@ -87,12 +103,33 @@ def interaction_model():
          # Moon"; and the Archers: "play the most recent archers, last week's one" - the house's script.peach_play works out which)
          "samples": ["play {what}", "play me {what}", "play some {what}", "put on {what}", "listen to {what}", "turn on {what}", "switch on {what}",
                      "put {what} on", "tune in to {what}", "tune to {what}", "tune into {what}", "start {what}", "i want to hear {what}"]},
+        # THE RADIO BY NAME (the user, 5 Nov 2026: with Peach Banana open, Alexa still took "play radio four" for its own player at
+        # times - the catch-all "play {what}" is a weak match next to Alexa's own. A list of the stations, each said many ways, is a
+        # strong one, so Peach Banana wins while it's open)
+        {"name": "RadioIntent", "slots": [{"name": "station", "type": "STATION"}],
+         "samples": [s.replace("VERB", v) for v in ["play", "turn on", "put on", "switch on", "start", "listen to", "tune to", "tune in to",
+                                                     "tune into", "i want", "i want to hear", "can you play", "could you play", "please play", "play me"]
+                     for s in ["VERB {station}", "VERB the {station}", "VERB bbc {station}"]]
+                    + ["{station} please", "put {station} on", "put the {station} on", "turn {station} on", "switch {station} on"]},
+        # BOOKS AND PODCASTS (the user, 5 Nov 2026: "include audible and similar") - Alexa keeps "read my book" / "play audible" for its
+        # own Audible player unless Peach Banana's words match better
+        {"name": "MyBookIntent", "slots": [],
+         "samples": ["play my book", "read my book", "continue my book", "resume my book", "carry on with my book", "play my audiobook",
+                     "continue my audiobook", "resume my audiobook", "play my audio book", "play audible", "continue audible", "resume audible",
+                     "play my audible book", "read me my book", "play my latest book", "continue reading", "keep reading", "carry on reading"]},
+        {"name": "BookIntent", "slots": [{"name": "title", "type": "AMAZON.SearchQuery"}],
+         "samples": ["read {title}", "read me {title}", "play the audiobook {title}", "play the book {title}", "continue the book {title}",
+                     "play audiobook {title}", "play audible book {title}", "listen to the book {title}", "resume the book {title}"]},
+        {"name": "PodcastIntent", "slots": [{"name": "title", "type": "AMAZON.SearchQuery"}],
+         "samples": ["play the podcast {title}", "play podcast {title}", "play the latest podcast {title}", "play the latest episode of {title}",
+                     "listen to the podcast {title}", "put on the podcast {title}"]},
         {"name": "AMAZON.PauseIntent", "samples": []}, {"name": "AMAZON.ResumeIntent", "samples": []},
         {"name": "AMAZON.HelpIntent", "samples": []}, {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []}, {"name": "AMAZON.FallbackIntent", "samples": []},
         {"name": "AMAZON.NavigateHomeIntent", "samples": []},
     ]
     types = [
+        {"name": "STATION", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in STATIONS]},
         VOLUME_TYPE,
         {"name": "ROOM", "values": _room_values()},
         {"name": "PAGE", "values": [{"name": {"value": "home", "synonyms": ["the house", "summary", "front page"]}},

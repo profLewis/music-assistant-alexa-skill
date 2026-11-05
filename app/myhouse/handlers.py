@@ -569,6 +569,37 @@ class PlayThis(AbstractRequestHandler):
         return play_this(handler_input, get_slot_value(handler_input, "what"))
 
 
+class Radio(AbstractRequestHandler):
+    """A BBC station by name (RadioIntent - the station list in model.STATIONS): as "play {what}", with the station's own name."""
+    def can_handle(self, handler_input):
+        return is_intent_name("RadioIntent")(handler_input)
+
+    def handle(self, handler_input):
+        said = get_slot_value(handler_input, "station") or "the radio"
+        try:   # (the station's own name when Alexa matched one of its ways of saying it)
+            slot = handler_input.request_envelope.request.intent.slots.get("station")
+            for r in (slot.resolutions.resolutions_per_authority or []):
+                if str(getattr(r.status.code, "value", r.status.code)) == "ER_SUCCESS_MATCH" and r.values:
+                    said = r.values[0].value.name
+                    break
+        except Exception:
+            pass
+        return play_this(handler_input, said)
+
+
+class Books(AbstractRequestHandler):
+    """Audible books and podcasts by voice (MyBookIntent / BookIntent / PodcastIntent): the house's peach_play knows "my book" (the
+    last one), "audiobook <title>" (one of your books) and "podcast <name>"."""
+    def can_handle(self, handler_input):
+        return any(is_intent_name(n)(handler_input) for n in ("MyBookIntent", "BookIntent", "PodcastIntent"))
+
+    def handle(self, handler_input):
+        name = handler_input.request_envelope.request.intent.name
+        title = (get_slot_value(handler_input, "title") or "").strip()
+        what = "my book" if name == "MyBookIntent" or not title else ("audiobook " if name == "BookIntent" else "podcast ") + title
+        return play_this(handler_input, what)
+
+
 def play_this(handler_input, what):
     rb = handler_input.response_builder
     if not what:
@@ -710,7 +741,7 @@ def PeachJournal(base):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), Radio(), Books(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_global_response_interceptor(ListeningWindow())
     try:   # (every request and answer noted in Home Assistant, as the music skill does - event skill_journal, skill "peach banana")
