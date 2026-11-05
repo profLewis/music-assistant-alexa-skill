@@ -575,6 +575,9 @@ class PlayThis(AbstractRequestHandler):
             return rb.speak("Sorry, Music Assistant didn't answer.").response
         if not got.get("ok"):
             return rb.speak(f"Sorry, I couldn't find {_spoken(what)}.").response
+        # (music is starting: no listening window after this answer - 5 Nov 2026, "play radio four" with the panel open was
+        #  answered "there was a problem with the requested skill's response" while the music began under an open microphone)
+        handler_input.attributes_manager.request_attributes["music_starting"] = True
         return rb.speak(f"Playing {_spoken(got.get('name', what))}.").response
 
 
@@ -637,6 +640,8 @@ class ListeningWindow(AbstractResponseInterceptor):
         try:
             if response is None or response.output_speech is None or response.should_end_session is True or response.reprompt is not None:
                 return
+            if handler_input.attributes_manager.request_attributes.get("music_starting"):
+                return
             if (response.directives or []) and any("AudioPlayer" in type(d).__name__ for d in response.directives):
                 return
             if ha.state("input_boolean.peach_listen", "on") == "off":
@@ -650,10 +655,26 @@ class ListeningWindow(AbstractResponseInterceptor):
             log.exception("Peach Banana: listening window")
 
 
+def PeachJournal(base):
+    """The music skill's SkillJournal, its events marked skill: peach banana."""
+    class _J(base):
+        @staticmethod
+        def _send(body):
+            base._send({**body, "skill": "peach banana"})
+    return _J()
+
+
 def build():
     sb = SkillBuilder()
     for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_global_response_interceptor(ListeningWindow())
+    try:   # (every request and answer noted in Home Assistant, as the music skill does - event skill_journal, skill "peach banana")
+        from skill.lambda_function import SkillJournal
+        j = PeachJournal(SkillJournal)
+        sb.add_global_request_interceptor(j)
+        sb.add_global_response_interceptor(j)
+    except Exception:
+        log.exception("Peach Banana: no skill journal")
     sb.add_exception_handler(Oops())
     return sb.create()
