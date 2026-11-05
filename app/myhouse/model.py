@@ -98,6 +98,12 @@ def interaction_model():
         VOLUME_INTENT,
         *[{"name": n, "slots": [{"name": "q", "type": "AMAZON.SearchQuery"}], "samples": samples} for n, (_w, samples) in ASK_INTENTS.items()],
         # (the user, 31 Oct: "when someone says alexa play xxx, route that through peach banana": heard while the panel is open)
+        # LOAD / UNLOAD (the user, 5 Nov 2026: "also use the term load to load it ready to play. unload is the opposite") and the
+        # player's own controls ("turn on shuffle" had played a song called Shuffle) - all done by the house's script.peach_play
+        {"name": "LoadIntent", "slots": [{"name": "what", "type": "AMAZON.SearchQuery"}],
+         "samples": ["load {what}", "load up {what}", "queue up {what}", "get {what} ready"]},
+        {"name": "PlayerControlIntent", "slots": [{"name": "ctl", "type": "PLAYER_CONTROL"}],
+         "samples": ["{ctl}", "{ctl} please", "{ctl} the music", "{ctl} the player", "please {ctl}"]},
         {"name": "PlayThisIntent", "slots": [{"name": "what", "type": "AMAZON.SearchQuery"}],
          # (the user, 4 Nov 2026: "'alexa turn on radio 4' or 'turn on the radio' treated the same as play radio 4 - in the radio on the
          # Moon"; and the Archers: "play the most recent archers, last week's one" - the house's script.peach_play works out which)
@@ -145,6 +151,12 @@ def interaction_model():
             ("cancel", ["delete", "remove", "turn off", "switch off"]), ("stop", ["silence"]), ("snooze", []), ("show", ["list"])]]},
         {"name": "ALERT_THING", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
             ("alarm", ["alarm clock"]), ("alarms", []), ("timer", []), ("timers", []), ("reminder", []), ("reminders", [])]]},
+        {"name": "PLAYER_CONTROL", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
+            ("unload", ["unload it", "unload this", "unload everything", "clear the player", "empty the player", "clear the queue"]),
+            ("shuffle on", ["shuffle", "turn on shuffle", "switch on shuffle", "shuffle mode", "shuffle mode on", "put shuffle on"]),
+            ("shuffle off", ["turn off shuffle", "switch off shuffle", "stop shuffling", "no shuffle", "unshuffle"]),
+            ("repeat on", ["repeat", "turn on repeat", "repeat this", "repeat mode", "loop", "loop it"]),
+            ("repeat off", ["turn off repeat", "stop repeating", "no repeat"])]]},
         {"name": "MUSIC_ACTION", "values": [{"name": {"value": v, "synonyms": s}} for v, s in [
             ("pause", ["stop", "hold"]), ("play", ["resume", "carry on", "continue"]), ("next", ["skip", "next song", "skip this"]),
             ("previous", ["back", "last song", "go back"]), ("louder", ["turn up", "volume up"]), ("quieter", ["turn down", "volume down"])]]},
