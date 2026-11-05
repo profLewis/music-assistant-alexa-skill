@@ -428,3 +428,23 @@ def test_listening_window_only_when_quiet(house, monkeypatch):
     states["media_player.the_moon_screen"] = "playing"
     r = run("IntentRequest", "TimeIntent")["response"]
     assert not r.get("reprompt")
+
+
+def test_shopping_add_goes_to_alexas_list(house, monkeypatch):
+    got = []
+    monkeypatch.setattr(ha, "shopping", lambda op, item: got.append((op, item)) or {"ok": True, "item": item})
+    r = run("IntentRequest", "ShoppingAddIntent", slots={"item": "vegetarian suet"})["response"]
+    assert got == [("add", "vegetarian suet")] and "put vegetarian suet on your shopping list" in r["outputSpeech"]["ssml"]
+
+
+def test_shopping_remove_not_there(house, monkeypatch):
+    monkeypatch.setattr(ha, "shopping", lambda op, item: {"ok": False, "item": item})
+    r = run("IntentRequest", "ShoppingRemoveIntent", slots={"item": "milk"})["response"]
+    assert "isn't on your shopping list" in r["outputSpeech"]["ssml"]
+
+
+def test_shopping_in_the_model():
+    from myhouse import model as m
+    names = {i["name"]: i for i in m.interaction_model()["interactionModel"]["languageModel"]["intents"]}
+    assert "put {item} on the shopping list" in names["ShoppingAddIntent"]["samples"]
+    assert "take {item} off my shopping list" in names["ShoppingRemoveIntent"]["samples"]

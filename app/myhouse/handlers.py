@@ -598,6 +598,32 @@ class PlayerControl(AbstractRequestHandler):
         return rb.speak(f"OK, {got.get('name') or ctl}.").response
 
 
+class Shopping(AbstractRequestHandler):
+    """THE SHOPPING LIST (the user, 5 Nov 2026: "if i say 'put xxx on the shopping list' to alexa I want it passed through to
+    the alexa shopping list" - at 18:29 "put vegetarian suet on the shopping list" was heard as a radio station and Peach Banana
+    said "Playing Shopping List"). Alexa's own list, changed by the house (script.peach_shopping); the panel and music left alone."""
+    def can_handle(self, handler_input):
+        return is_intent_name("ShoppingAddIntent")(handler_input) or is_intent_name("ShoppingRemoveIntent")(handler_input)
+
+    def handle(self, handler_input):
+        rb = handler_input.response_builder
+        add = is_intent_name("ShoppingAddIntent")(handler_input)
+        item = (get_slot_value(handler_input, "item") or "").strip()
+        if not item:
+            return rb.speak("What shall I " + ("put on" if add else "take off") + " the shopping list?").ask("What is it?").response
+        try:
+            got = ha.shopping("add" if add else "remove", item)
+        except Exception:
+            log.exception("Peach Banana: shopping list %s", item)
+            return rb.speak("Sorry, I couldn't reach the shopping list.").response
+        name = got.get("item") or item
+        if add:
+            return rb.speak(f"I've put {name} on your shopping list.").response
+        if got.get("ok"):
+            return rb.speak(f"I've taken {name} off your shopping list.").response
+        return rb.speak(f"{name} isn't on your shopping list.").response
+
+
 class Radio(AbstractRequestHandler):
     """A BBC station by name (RadioIntent - the station list in model.STATIONS): as "play {what}", with the station's own name."""
     def can_handle(self, handler_input):
@@ -772,7 +798,7 @@ def PeachJournal(base):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), Radio(), Books(), Load(), PlayerControl(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), Radio(), Books(), Shopping(), Load(), PlayerControl(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_global_response_interceptor(ListeningWindow())
     try:   # (every request and answer noted in Home Assistant, as the music skill does - event skill_journal, skill "peach banana")
