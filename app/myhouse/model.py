@@ -153,10 +153,13 @@ def interaction_model():
             ("alarm", ["alarm clock"]), ("alarms", []), ("timer", []), ("timers", []), ("reminder", []), ("reminders", [])]]},
         {"name": "PLAYER_CONTROL", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
             ("unload", ["unload it", "unload this", "unload everything", "clear the player", "empty the player", "clear the queue"]),
-            ("shuffle on", ["shuffle", "turn on shuffle", "switch on shuffle", "shuffle mode", "shuffle mode on", "put shuffle on"]),
-            ("shuffle off", ["turn off shuffle", "switch off shuffle", "stop shuffling", "no shuffle", "unshuffle"]),
-            ("repeat on", ["repeat", "turn on repeat", "repeat this", "repeat mode", "loop", "loop it"]),
-            ("repeat off", ["turn off repeat", "stop repeating", "no repeat"])]]},
+            # (a bare "shuffle" / "shuffle mode" flips it - the user, 5 Nov 2026; "on" / "off" said = that)
+            ("shuffle", ["shuffle mode", "toggle shuffle", "shuffle it", "shuffle this"]),
+            ("shuffle on", ["turn on shuffle", "switch on shuffle", "turn on shuffle mode", "shuffle mode on", "put shuffle on"]),
+            ("shuffle off", ["turn off shuffle", "switch off shuffle", "turn off shuffle mode", "shuffle mode off", "stop shuffling", "no shuffle", "unshuffle"]),
+            ("repeat", ["repeat mode", "toggle repeat", "loop", "loop it", "repeat this"]),
+            ("repeat on", ["turn on repeat", "switch on repeat", "repeat mode on"]),
+            ("repeat off", ["turn off repeat", "switch off repeat", "repeat mode off", "stop repeating", "no repeat"])]]},
         {"name": "MUSIC_ACTION", "values": [{"name": {"value": v, "synonyms": s}} for v, s in [
             ("pause", ["stop", "hold"]), ("play", ["resume", "carry on", "continue"]), ("next", ["skip", "next song", "skip this"]),
             ("previous", ["back", "last song", "go back"]), ("louder", ["turn up", "volume up"]), ("quieter", ["turn down", "volume down"])]]},
