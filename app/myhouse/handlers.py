@@ -569,6 +569,35 @@ class PlayThis(AbstractRequestHandler):
         return play_this(handler_input, get_slot_value(handler_input, "what"))
 
 
+class Load(AbstractRequestHandler):
+    """LOAD it ready to play (the user, 5 Nov 2026) - the house plays it and pauses it the moment it starts."""
+    def can_handle(self, handler_input):
+        return is_intent_name("LoadIntent")(handler_input)
+
+    def handle(self, handler_input):
+        what = get_slot_value(handler_input, "what")
+        return play_this(handler_input, ("load " + what) if what else None)
+
+
+class PlayerControl(AbstractRequestHandler):
+    """Unload, shuffle on / off, repeat on / off - the player that's playing (script.peach_play does it)."""
+    def can_handle(self, handler_input):
+        return is_intent_name("PlayerControlIntent")(handler_input)
+
+    def handle(self, handler_input):
+        rb = handler_input.response_builder
+        ctl = (_resolved(handler_input, "ctl") or get_slot_value(handler_input, "ctl") or "").lower()
+        if not ctl:
+            return rb.speak("Shuffle, repeat or unload?").response
+        try:
+            got = ha.play_this(ctl)
+        except Exception:
+            log.exception("Peach Banana: player control %s", ctl)
+            return rb.speak("Sorry, Music Assistant didn't answer.").response
+        handler_input.attributes_manager.request_attributes["music_starting"] = True   # (no listening window over the music)
+        return rb.speak(f"OK, {got.get('name') or ctl}.").response
+
+
 class Radio(AbstractRequestHandler):
     """A BBC station by name (RadioIntent - the station list in model.STATIONS): as "play {what}", with the station's own name."""
     def can_handle(self, handler_input):
@@ -653,6 +682,8 @@ def play_this(handler_input, what):
     # (music is starting: no listening window after this answer - 5 Nov 2026, "play radio four" with the panel open was
     #  answered "there was a problem with the requested skill's response" while the music began under an open microphone)
     handler_input.attributes_manager.request_attributes["music_starting"] = True
+    if what.lower().startswith("load "):
+        return rb.speak(f"{_spoken(got.get('name', what))} is loaded, ready to play.").response
     return rb.speak(f"Playing {_spoken(got.get('name', what))}.").response
 
 
@@ -741,7 +772,7 @@ def PeachJournal(base):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), Radio(), Books(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), Radio(), Books(), Load(), PlayerControl(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_global_response_interceptor(ListeningWindow())
     try:   # (every request and answer noted in Home Assistant, as the music skill does - event skill_journal, skill "peach banana")
