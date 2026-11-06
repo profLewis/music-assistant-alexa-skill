@@ -55,7 +55,11 @@ OPENINGS += ["who", "whom", "how come", "isn't", "aren't", "wasn't", "weren't", 
              "why do", "why does", "why is", "who invented", "who wrote", "who won", "when is", "when was", "when did",
              "where is", "where are", "where can", "which is", "which one", "what are", "what was", "what were", "what does",
              "what do", "what did", "what if", "what can", "what should"]
-OPENINGS = list(dict.fromkeys(OPENINGS))
+# (Amazon: intents + slots together at most 350 - 6 Nov 2026 the model was refused at 405. The rarest openings left out.)
+_RARE = {"whom", "isn't", "aren't", "wasn't", "weren't", "won't", "wouldn't", "couldn't", "shouldn't", "haven't", "hasn't", "doesn't",
+         "then", "now", "well", "oh", "right", "really", "actually", "sorry", "also", "count", "multiply", "divide", "subtract",
+         "simplify", "rhyme", "recite", "in what", "on what", "opposite of", "synonym for", "distance to", "ask me", "test me"}
+OPENINGS = [w for w in dict.fromkeys(OPENINGS) if w not in _RARE]
 # (one already covered by its own first word - "how many {q}" is heard as "how {q}", the same words - is left out: Amazon allows
 #  only so many intents)
 _ONE = {w for w in OPENINGS if " " not in w} | {"what", "who", "how", "why", "where", "when"}
@@ -131,9 +135,9 @@ def interaction_model():
         VOLUME_INTENT,
         *[{"name": n, "slots": [{"name": "q", "type": "AMAZON.SearchQuery"}], "samples": samples} for n, (_w, samples) in ASK_INTENTS.items()],
         # (said on its own - "a joke", "another riddle", "the news" - no free words after it, so a list of its own: handlers.AskThing)
-        {"name": "AskThingIntent", "slots": [{"name": "thing", "type": "ASK_THING"}],
-         "samples": ["{thing}", "a {thing}", "an {thing}", "another {thing}", "one more {thing}", "give us a {thing}", "tell us a {thing}",
-                     "i want a {thing}", "i'd like a {thing}", "say a {thing}", "any {thing}", "the {thing}"]},
+        {"name": "AskThingIntent", "slots": [{"name": "asked", "type": "ASK_THING"}],
+         "samples": ["{asked}", "a {asked}", "an {asked}", "another {asked}", "one more {asked}", "give us a {asked}", "tell us a {asked}",
+                     "i want a {asked}", "i'd like a {asked}", "say a {asked}", "any {asked}", "the {asked}"]},
         # (the user, 31 Oct: "when someone says alexa play xxx, route that through peach banana": heard while the panel is open)
         # LOAD / UNLOAD (the user, 5 Nov 2026: "also use the term load to load it ready to play. unload is the opposite") and the
         # player's own controls ("turn on shuffle" had played a song called Shuffle) - all done by the house's script.peach_play

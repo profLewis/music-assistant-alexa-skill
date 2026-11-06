@@ -508,9 +508,9 @@ class AskThing(AbstractRequestHandler):
         return is_intent_name("AskThingIntent")(handler_input)
 
     def handle(self, handler_input):
-        thing = get_slot_value(handler_input, "thing")
+        thing = get_slot_value(handler_input, "asked")
         try:   # (the list's own word, not the synonym heard)
-            rs = handler_input.request_envelope.request.intent.slots["thing"].resolutions.resolutions_per_authority[0]
+            rs = handler_input.request_envelope.request.intent.slots["asked"].resolutions.resolutions_per_authority[0]
             thing = rs.values[0].value.name or thing
         except Exception:
             pass
