@@ -544,6 +544,7 @@ class GoodMorning(AbstractRequestHandler):
         from datetime import datetime
         from dateutil import tz
         now = _clock(datetime.now(tz.gettz(alerts.ZONE)).strftime('%H:%M'))
+        handler_input.attributes_manager.request_attributes["music_starting"] = True   # (Radio 4 starts: no listening window over it)
         try:
             say = ha.good_morning().get("say") or f"Good morning. It's {now}."
         except Exception:
@@ -767,7 +768,7 @@ class ListeningWindow(AbstractResponseInterceptor):
     it doesn't interfere with what's playing"): after Peach Banana SPEAKS an answer, the microphone stays open about 8 s (the
     blue ring) so the next thing can be said without "Alexa" - each answer opens a new window. Only when NOTHING is playing on
     the Moon (its Peach Banana speaker, or the Echo itself): listening would duck the music. Never on a reply that ends the
-    session or starts music; the reprompt is silent (no "anything else?"). input_boolean.peach_listen switches it off."""
+    session or starts music; no reprompt at all (no "anything else?" - and a silent one is refused by Amazon). input_boolean.peach_listen switches it off."""
     def process(self, handler_input, response):
         try:
             if response is None or response.output_speech is None or response.should_end_session is True or response.reprompt is not None:
@@ -780,8 +781,9 @@ class ListeningWindow(AbstractResponseInterceptor):
                 return
             if any(ha.state(p) == "playing" for p in ("media_player.the_moon_screen", "media_player.the_moon", "media_player.kitchen_the_moon")):
                 return
-            from ask_sdk_model.ui import Reprompt, SsmlOutputSpeech
-            response.reprompt = Reprompt(output_speech=SsmlOutputSpeech(ssml='<speak><break time="1ms"/></speak>'))
+            # (NO reprompt: a silent one - <break time="1ms"/> - is refused by Amazon, "SSML does not contain any speech content",
+            # and the whole answer with it: "a problem with the requested skill's response" and Peach Banana closed - the user,
+            # 6 Nov 2026, "Alexa, good morning". shouldEndSession false alone opens the microphone after the answer.)
             response.should_end_session = False
         except Exception:
             log.exception("Peach Banana: listening window")

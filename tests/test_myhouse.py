@@ -424,10 +424,21 @@ def test_listening_window_only_when_quiet(house, monkeypatch):
     states = {"input_boolean.peach_listen": "on", "media_player.the_moon_screen": "idle"}
     monkeypatch.setattr(ha, "state", lambda e, d=None: states.get(e, d))
     r = run("IntentRequest", "TimeIntent")["response"]
-    assert r.get("reprompt") and r.get("shouldEndSession") is False
+    assert r.get("shouldEndSession") is False
+    assert not r.get("reprompt")   # (a silent reprompt is refused by Amazon: "SSML does not contain any speech content")
     states["media_player.the_moon_screen"] = "playing"
     r = run("IntentRequest", "TimeIntent")["response"]
-    assert not r.get("reprompt")
+    assert not r.get("reprompt") and r.get("shouldEndSession") is not False
+
+
+def test_good_morning_no_listening_window(house, monkeypatch):
+    """6 Nov 2026: "Alexa, good morning" -> "a problem with the requested skill's response" (the silent reprompt). Radio 4 is
+    starting, so no listening window at all - and never a reprompt."""
+    states = {"input_boolean.peach_listen": "on", "media_player.the_moon_screen": "idle"}
+    monkeypatch.setattr(ha, "state", lambda e, d=None: states.get(e, d))
+    r = run("IntentRequest", "GoodMorningIntent")["response"]
+    assert "Good morning" in r["outputSpeech"]["ssml"]
+    assert not r.get("reprompt") and r.get("shouldEndSession") is not False
 
 
 def test_shopping_add_goes_to_alexas_list(house, monkeypatch):
