@@ -466,3 +466,20 @@ def test_shopping_in_the_model():
     names = {i["name"]: i for i in m.interaction_model()["interactionModel"]["languageModel"]["intents"]}
     assert "put {item} on the shopping list" in names["ShoppingAddIntent"]["samples"]
     assert "take {item} off my shopping list" in names["ShoppingRemoveIntent"]["samples"]
+
+
+def test_more_things_go_to_the_ai(house, monkeypatch):
+    """6 Nov 2026: "as many things as possible handled by the Peach Banana AI"."""
+    asked = []
+    monkeypatch.setattr(ha, "ask_ai", lambda t, c="": asked.append(t) or {"ok": True, "answer": "Here you go.", "conversation_id": "c"})
+    run("IntentRequest", "AskWhoOpenIntent", slots={"q": "invented the telephone"})
+    run("IntentRequest", "AskThingIntent", slots={"thing": "joke"})
+    run("IntentRequest", "AskThingIntent", slots={"thing": "news"})
+    assert asked == ["who invented the telephone", "tell me a joke", "what's in the news today"]
+
+
+def test_model_fits():
+    I = model.interaction_model()["interactionModel"]["languageModel"]["intents"]
+    assert len(I) < 240
+    said = [s.lower() for i in I for s in i.get("samples", [])]
+    assert len(said) == len(set(said))

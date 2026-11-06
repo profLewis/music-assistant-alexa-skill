@@ -36,9 +36,42 @@ OPENINGS = ["what", "which", "whose", "who are", "who was", "how's", "where's", 
             "do", "does", "did", "will", "would", "should", "shall", "has", "have", "had", "may", "might", "must", "explain", "describe", "define",
             "translate", "convert", "calculate", "compare", "summarise", "spell", "pronounce", "recommend", "suggest", "name", "list", "find", "search for",
             "look up", "google", "say", "give me", "teach me", "help me", "write", "make up", "i", "i'm", "i'd", "my", "we", "you", "your", "let's", "please", "hey", "okay"]
+# (the user, 6 Nov 2026: "I want as many things as possible handled by the Peach Banana AI - can you extend it?"): many more
+# openings - questions put the other way round, follow-ups, maths, writing, the day's news / weather... Still never a word that
+# starts a job the panel does itself (show, go, open, turn, switch, boost, set, make, play, put, add, take, remove, load, read,
+# start, stop, pause, resume, next, skip, shuffle, repeat, cancel, good morning, help, volume).
+OPENINGS += ["who", "whom", "how come", "isn't", "aren't", "wasn't", "weren't", "don't", "doesn't", "didn't", "won't", "wouldn't",
+             "can't", "couldn't", "shouldn't", "haven't", "hasn't", "is there", "are there", "was there", "do you know", "have you heard",
+             "what about", "how about", "and", "but", "so", "also", "actually", "really", "now", "then", "well", "oh", "ok", "right",
+             "yes", "thanks", "thank you", "sorry", "if", "suppose", "imagine", "pretend", "guess", "think of", "invent",
+             "create", "compose", "draft", "plan", "work out", "figure out", "estimate", "count", "multiply", "divide", "subtract",
+             "solve", "simplify", "rhyme", "sing", "recite", "quiz me", "test me", "ask me", "any", "anything", "something",
+             "tell us", "talk about", "talk to me about", "chat about", "let me know", "remind me what", "in what", "on what",
+             "according to", "the news", "news", "headlines", "weather", "the weather", "forecast", "recipe for", "a recipe for",
+             "definition of", "meaning of", "synonym for", "opposite of", "difference between", "a story about", "a poem about",
+             "a joke about", "a fact about", "facts about", "fun fact about", "tips for", "ideas for", "advice on", "thoughts on",
+             "summary of", "history of", "capital of", "population of", "distance to", "story", "poem", "joke", "riddle", "quote",
+             "trivia", "fact", "how many", "how much", "how long", "how far", "how old", "how big", "how do", "how does", "how to",
+             "why do", "why does", "why is", "who invented", "who wrote", "who won", "when is", "when was", "when did",
+             "where is", "where are", "where can", "which is", "which one", "what are", "what was", "what were", "what does",
+             "what do", "what did", "what if", "what can", "what should"]
+OPENINGS = list(dict.fromkeys(OPENINGS))
+# (one already covered by its own first word - "how many {q}" is heard as "how {q}", the same words - is left out: Amazon allows
+#  only so many intents)
+_ONE = {w for w in OPENINGS if " " not in w} | {"what", "who", "how", "why", "where", "when"}
+OPENINGS = [w for w in OPENINGS if " " not in w or w.split()[0] not in _ONE]
 for _w in OPENINGS:
     ASK_INTENTS["Ask" + "".join(x.capitalize() for x in _w.replace("'", " ").split()) + "OpenIntent"] = (_w, [_w + " {q}"])
 
+
+# the bare requests for the AI (AskThingIntent) and what the AI is asked for each
+ASK_THINGS = [("joke", ["jokes", "funny joke", "good joke", "knock knock joke", "dad joke"]), ("riddle", ["riddles", "puzzle", "brain teaser"]),
+              ("fact", ["fun fact", "random fact", "interesting fact", "fact of the day", "facts"]), ("story", ["bedtime story", "short story", "stories"]),
+              ("poem", ["short poem", "limerick", "haiku", "rhyme"]), ("quote", ["quotation", "quote of the day", "inspiring quote"]),
+              ("tongue twister", ["tongue twisters"]), ("word of the day", ["new word"]), ("compliment", ["nice thing"]),
+              ("news", ["news headlines", "headlines", "latest news", "today's news"]), ("weather", ["weather forecast", "forecast", "today's weather", "tomorrow's weather"]),
+              ("trivia question", ["quiz question", "quiz", "trivia", "general knowledge question"]), ("recipe idea", ["recipe", "dinner idea", "something to cook"]),
+              ("conversation", ["chat", "natter"]), ("fortune", ["horoscope", "prediction"])]
 
 # the BBC stations as script.peach_play knows them (packages/peach_play.yaml), each with the ways it's said
 STATIONS = [
@@ -97,6 +130,10 @@ def interaction_model():
                                                                "hello good morning", "good morning everyone"]},
         VOLUME_INTENT,
         *[{"name": n, "slots": [{"name": "q", "type": "AMAZON.SearchQuery"}], "samples": samples} for n, (_w, samples) in ASK_INTENTS.items()],
+        # (said on its own - "a joke", "another riddle", "the news" - no free words after it, so a list of its own: handlers.AskThing)
+        {"name": "AskThingIntent", "slots": [{"name": "thing", "type": "ASK_THING"}],
+         "samples": ["{thing}", "a {thing}", "an {thing}", "another {thing}", "one more {thing}", "give us a {thing}", "tell us a {thing}",
+                     "i want a {thing}", "i'd like a {thing}", "say a {thing}", "any {thing}", "the {thing}"]},
         # (the user, 31 Oct: "when someone says alexa play xxx, route that through peach banana": heard while the panel is open)
         # LOAD / UNLOAD (the user, 5 Nov 2026: "also use the term load to load it ready to play. unload is the opposite") and the
         # player's own controls ("turn on shuffle" had played a song called Shuffle) - all done by the house's script.peach_play
@@ -142,6 +179,7 @@ def interaction_model():
         {"name": "AMAZON.NavigateHomeIntent", "samples": []},
     ]
     types = [
+        {"name": "ASK_THING", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in ASK_THINGS]},
         {"name": "STATION", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in STATIONS]},
         VOLUME_TYPE,
         {"name": "ROOM", "values": _room_values()},
