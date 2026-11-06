@@ -525,12 +525,23 @@ def _spoken(answer):
 
 
 class Time(AbstractRequestHandler):
+    """"What time is it" / "what's the time": the AI helper answers (the user, 6 Nov 2026: "does 'Alexa what is the time' or
+    similar phrases go to my AI in Peach Banana? if not then make it so" - it is told the time at home with every question).
+    The AI off / not answering: the clock said here, as before (never "sorry" for the time)."""
     def can_handle(self, handler_input):
         return is_intent_name("TimeIntent")(handler_input)
 
     def handle(self, handler_input):
         from datetime import datetime
         from dateutil import tz
+        at = handler_input.attributes_manager.session_attributes
+        try:
+            got = ha.ask_ai("what time is it", at.get("ai_chat", ""))
+            if got.get("ok") and got.get("answer"):
+                at["ai_chat"] = got.get("conversation_id", "")
+                return handler_input.response_builder.speak(_spoken(got["answer"])).response
+        except Exception:
+            log.exception("Peach Banana: the AI helper didn't answer the time")
         return handler_input.response_builder.speak(f"It's {_clock(datetime.now(tz.gettz(alerts.ZONE)).strftime('%H:%M'))}.").response
 
 

@@ -244,6 +244,13 @@ def test_time_answered_here(house):
     assert "It's" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession")
 
 
+def test_time_goes_to_the_ai(house, monkeypatch):
+    asked = []
+    monkeypatch.setattr(ha, "ask_ai", lambda t, c="": asked.append(t) or {"ok": True, "answer": "It's twenty past seven.", "conversation_id": "c1"})
+    r = run("IntentRequest", "TimeIntent")["response"]
+    assert asked == ["what time is it"] and "twenty past seven" in r["outputSpeech"]["ssml"]
+
+
 def test_alarm_time_is_the_next_one(house):
     from datetime import datetime
     from myhouse import alerts
