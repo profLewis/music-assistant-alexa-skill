@@ -473,13 +473,18 @@ def test_more_things_go_to_the_ai(house, monkeypatch):
     asked = []
     monkeypatch.setattr(ha, "ask_ai", lambda t, c="": asked.append(t) or {"ok": True, "answer": "Here you go.", "conversation_id": "c"})
     run("IntentRequest", "AskWhoOpenIntent", slots={"q": "invented the telephone"})
-    run("IntentRequest", "AskThingIntent", slots={"thing": "joke"})
-    run("IntentRequest", "AskThingIntent", slots={"thing": "news"})
+    run("IntentRequest", "AskThingIntent", slots={"asked": "joke"})
+    run("IntentRequest", "AskThingIntent", slots={"asked": "news"})
     assert asked == ["who invented the telephone", "tell me a joke", "what's in the news today"]
 
 
 def test_model_fits():
     I = model.interaction_model()["interactionModel"]["languageModel"]["intents"]
-    assert len(I) < 240
+    assert len(I) + sum(len(i.get("slots", [])) for i in I) <= 345   # (Amazon's limit: 350 intents + slots)
+    kinds = {}
+    for i in I:
+        for sl in i.get("slots", []):
+            kinds.setdefault(sl["name"], set()).add(sl["type"])
+    assert all(len(v) == 1 for v in kinds.values())   # (a slot name may have only one type across the model)
     said = [s.lower() for i in I for s in i.get("samples", [])]
     assert len(said) == len(set(said))
