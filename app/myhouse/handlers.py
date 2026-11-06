@@ -502,6 +502,25 @@ class AskAI(AbstractRequestHandler):
         return ask_ai_said(handler_input, rest or text)
 
 
+class AskThing(AbstractRequestHandler):
+    """"A joke", "another riddle", "the news" said on their own (the user, 6 Nov 2026: as much as possible to the AI)."""
+    def can_handle(self, handler_input):
+        return is_intent_name("AskThingIntent")(handler_input)
+
+    def handle(self, handler_input):
+        thing = get_slot_value(handler_input, "thing")
+        try:   # (the list's own word, not the synonym heard)
+            rs = handler_input.request_envelope.request.intent.slots["thing"].resolutions.resolutions_per_authority[0]
+            thing = rs.values[0].value.name or thing
+        except Exception:
+            pass
+        if not thing:
+            return _reply(handler_input, "What would you like to know?")
+        text = {"news": "what's in the news today", "weather": "what's the weather going to be like",
+                "conversation": "let's have a chat"}.get(thing, f"tell me a {thing}")
+        return ask_ai_said(handler_input, text)
+
+
 def ask_ai_said(handler_input, text):
     rb = handler_input.response_builder
     at = handler_input.attributes_manager.session_attributes
@@ -811,7 +830,7 @@ def PeachJournal(base):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), Radio(), Books(), Shopping(), Load(), PlayerControl(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), AskThing(), Radio(), Books(), Shopping(), Load(), PlayerControl(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
         sb.add_request_handler(h)
     sb.add_global_response_interceptor(ListeningWindow())
     try:   # (every request and answer noted in Home Assistant, as the music skill does - event skill_journal, skill "peach banana")
