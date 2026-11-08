@@ -512,3 +512,14 @@ def test_voice_model_takes_a_bare_number():
     from app.myhouse import model
     it = next(i for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"] if i["name"] == "SetTargetIntent")
     assert "{temp}" in it["samples"]
+
+
+# (halves too - the user, 8 Nov 2026: "all numbers from 9 to 40 (integers and 0.5)")
+@pytest.mark.parametrize("slots,want", [({"temp": "20", "tenth": "5"}, 20.5), ({"temp": "19", "half": "and a half"}, 19.5),
+                                        ({"temp": "21", "tenth": "2"}, 21.0)])
+def test_halves_set_the_target(house, slots, want):
+    st = ha.states()
+    st["input_number.target_temperature"] = {"state": "20", "attributes": {"min": 10, "max": 32}}
+    r = run("IntentRequest", "SetTargetIntent", slots=slots)["response"]
+    assert ("input_number", "set_value", {"entity_id": "input_number.target_temperature", "value": want}) in house
+    assert f"setting the house temperature target to {want:.1f} degrees" in r["outputSpeech"]["ssml"].lower()
