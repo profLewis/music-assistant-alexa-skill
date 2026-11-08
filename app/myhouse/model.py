@@ -108,9 +108,14 @@ def interaction_model():
          "samples": [f"boost the {R}", f"boost {R}", f"boost the {R} radiator", f"warm up the {R}", f"heat the {R}"]},
         {"name": "EndBoostIntent", "slots": [{"name": "room", "type": "ROOM"}],
          "samples": [f"stop the boost in the {R}", f"end the {R} boost", "stop the boosts", "end all boosts"]},
-        {"name": "SetTargetIntent", "slots": [{"name": "temp", "type": "AMAZON.NUMBER"}],
+        {"name": "SetTargetIntent", "slots": [{"name": "temp", "type": "AMAZON.NUMBER"}, {"name": "tenth", "type": "AMAZON.NUMBER"},
+                                              {"name": "half", "type": "HALF"}],
          "samples": ["set the house to {temp} degrees", "set the heating to {temp}", "make it {temp} degrees", "target {temp}",
-                     "{temp}", "{temp} degrees"]},   # (a number on its own: the house target - 8 Nov 2026)
+                     "{temp}", "{temp} degrees",   # (a number on its own: the house target - 8 Nov 2026)
+                     # (and halves - the user, 8 Nov 2026: "all numbers from 9 to 40 (integers and 0.5)": "twenty point five",
+                     #  "twenty and a half")
+                     "{temp} point {tenth}", "{temp} point {tenth} degrees", "{temp} {half}", "{temp} {half} degrees",
+                     "set the house to {temp} point {tenth}", "set the house to {temp} {half}", "make it {temp} point {tenth}", "make it {temp} {half}"]},
         {"name": "TemperatureIntent", "slots": [{"name": "room", "type": "ROOM"}],
          "samples": [f"what's the temperature in the {R}", f"how warm is the {R}", "how warm is the house", "what's the temperature"]},
         {"name": "MusicIntent", "slots": [{"name": "act", "type": "MUSIC_ACTION"}],
@@ -208,6 +213,7 @@ def interaction_model():
             ("repeat", ["repeat mode", "toggle repeat", "loop", "loop it", "repeat this"]),
             ("repeat on", ["turn on repeat", "switch on repeat", "repeat mode on"]),
             ("repeat off", ["turn off repeat", "switch off repeat", "repeat mode off", "stop repeating", "no repeat"])]]},
+        {"name": "HALF", "values": [{"name": {"value": "and a half", "synonyms": ["and half", "a half"]}}]},
         {"name": "MUSIC_ACTION", "values": [{"name": {"value": v, "synonyms": s}} for v, s in [
             ("pause", ["stop", "hold"]), ("play", ["resume", "carry on", "continue"]), ("next", ["skip", "next song", "skip this"]),
             ("previous", ["back", "last song", "go back"]), ("louder", ["turn up", "volume up"]), ("quieter", ["turn down", "volume down"])]]},

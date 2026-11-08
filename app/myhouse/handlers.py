@@ -184,7 +184,7 @@ class Command(AbstractRequestHandler):
                 "LightsOffIntent": lambda: actions.room_lights(rm, False) if rm else actions.all_lights(False),
                 "BoostIntent": lambda: actions.boost(rm or "", toggle=False),
                 "EndBoostIntent": lambda: actions.end_boost(rm or "all"),
-                "SetTargetIntent": lambda: actions.set_target(get_slot_value(handler_input, "temp")),
+                "SetTargetIntent": lambda: actions.set_target(get_slot_value(handler_input, "temp"), get_slot_value(handler_input, "tenth"), get_slot_value(handler_input, "half")),
                 "TemperatureIntent": lambda: actions.temperature(rm),
                 "MusicIntent": lambda: actions.music(get_slot_value(handler_input, "act")) or "OK.",
             }[name]()

@@ -57,11 +57,16 @@ def _target_limits():
     return (max([lo] + mn), min([hi] + mx))
 
 
-def set_target(t):
+def set_target(t, tenth=None, half=None):
     """A number said (on its own, or "set the house to ..."): the house target (the user, 8 Nov 2026: "when I say a number between 9
     and 40 ... and I am working in degrees C, then set the house target to that value (equivalent in F if that's the units). If over
     Tmax set to Tmax, if under Tmin set to Tmin. Announce that you are setting the house temperature target to X degrees.")"""
     v = _num(t)
+    if v is not None and _num(tenth) is not None:   # ("twenty point five" → 20.5)
+        d = str(int(_num(tenth)))
+        v = v + int(d) / 10 ** len(d)
+    elif v is not None and half:   # ("twenty and a half")
+        v = v + 0.5
     f = "F" in str(ha.attr("sensor.house_temperature", "unit_of_measurement", "") or ha.attr(TARGET, "unit_of_measurement", "") or "")
     lo_say, hi_say = (48, 104) if f else (9, 40)   # (9-40 C; the same in F)
     if v is None or not lo_say <= v <= hi_say:
