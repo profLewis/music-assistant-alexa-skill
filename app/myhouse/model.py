@@ -109,7 +109,8 @@ def interaction_model():
         {"name": "EndBoostIntent", "slots": [{"name": "room", "type": "ROOM"}],
          "samples": [f"stop the boost in the {R}", f"end the {R} boost", "stop the boosts", "end all boosts"]},
         {"name": "SetTargetIntent", "slots": [{"name": "temp", "type": "AMAZON.NUMBER"}],
-         "samples": ["set the house to {temp} degrees", "set the heating to {temp}", "make it {temp} degrees", "target {temp}"]},
+         "samples": ["set the house to {temp} degrees", "set the heating to {temp}", "make it {temp} degrees", "target {temp}",
+                     "{temp}", "{temp} degrees"]},   # (a number on its own: the house target - 8 Nov 2026)
         {"name": "TemperatureIntent", "slots": [{"name": "room", "type": "ROOM"}],
          "samples": [f"what's the temperature in the {R}", f"how warm is the {R}", "how warm is the house", "what's the temperature"]},
         {"name": "MusicIntent", "slots": [{"name": "act", "type": "MUSIC_ACTION"}],

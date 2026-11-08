@@ -488,3 +488,27 @@ def test_model_fits():
     assert all(len(v) == 1 for v in kinds.values())   # (a slot name may have only one type across the model)
     said = [s.lower() for i in I for s in i.get("samples", [])]
     assert len(said) == len(set(said))
+
+
+# (a number on its own sets the house target, clamped to the radiators' limits, and says so - the user, 8 Nov 2026)
+@pytest.mark.parametrize("said,want", [("21", 21.0), ("22.5", 22.5), ("40", 30.0), ("9", 10.0), ("10", 10.0)])
+def test_a_number_sets_the_target_clamped(house, monkeypatch, said, want):
+    st = ha.states()
+    st["input_number.target_temperature"] = {"state": "20", "attributes": {"min": 10, "max": 32}}
+    st["climate.radiator_living_room_thermostat"]["attributes"].update({"min_temp": 5, "max_temp": 30})
+    r = run("IntentRequest", "SetTargetIntent", slots={"temp": said})["response"]
+    assert ("input_number", "set_value", {"entity_id": "input_number.target_temperature", "value": want}) in house
+    assert f"setting the house temperature target to {want:.1f} degrees" in r["outputSpeech"]["ssml"].lower()
+
+
+@pytest.mark.parametrize("said", ["5", "41", "100"])
+def test_a_number_out_of_range_is_refused(house, said):
+    r = run("IntentRequest", "SetTargetIntent", slots={"temp": said})["response"]
+    assert not [c for c in house if c[:2] == ("input_number", "set_value")]
+    assert "between 9 and 40" in r["outputSpeech"]["ssml"]
+
+
+def test_voice_model_takes_a_bare_number():
+    from app.myhouse import model
+    it = next(i for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"] if i["name"] == "SetTargetIntent")
+    assert "{temp}" in it["samples"]

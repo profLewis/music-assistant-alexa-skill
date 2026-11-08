@@ -191,6 +191,9 @@ class Command(AbstractRequestHandler):
         except Exception:
             log.exception("MyHouse: %s failed", name)
             say = "Sorry, the house didn't answer."
+        if name == "SetTargetIntent" and _html(handler_input):
+            # (the whole control panel is open: a drawn page would replace it - say it; the panel and the session stay)
+            return handler_input.response_builder.speak(say).response
         return _reply(handler_input, say, INTENT_PAGE[name])
 
 
