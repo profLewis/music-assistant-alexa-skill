@@ -89,6 +89,29 @@ def test_voice_boost_living_room(house):
     assert "living room" in r["outputSpeech"]["ssml"].lower()
 
 
+def test_hallway_is_two_rooms_and_hallway_means_both(house):
+    # (8 Nov 2026: the hallway split into Lower and Upper hallway, each its own radiator and thermometer)
+    from myhouse.house import room, rooms
+    assert room("landing") == "Upper hallway" and room("hall") == "Lower hallway" and room("downstairs hall") == "Lower hallway"
+    assert room("upstairs hall") == "Upper hallway" and room("front hall") == "Lower hallway"
+    assert rooms("hallway") == ["Lower hallway", "Upper hallway"] and rooms("the hallway lights") == ["Lower hallway", "Upper hallway"]
+    assert rooms("lower hallway") == ["Lower hallway"]
+    st = ha.states()
+    st["sensor.room_temperature_lower_hallway"] = {"state": "18.1", "attributes": {}}
+    st["sensor.room_temperature_upper_hallway"] = {"state": "17.8", "attributes": {}}
+    run("IntentRequest", "BoostIntent", slots={"room": "hallway"})
+    assert ("script", "heating_boost", {"entity": "climate.radiator_lower_hallway_thermostat", "temp": 19.0, "hours": 2.0}) in house
+    assert ("script", "heating_boost", {"entity": "climate.radiator_upper_hallway_thermostat", "temp": 19.0, "hours": 2.0}) in house
+    house.clear()
+    run("IntentRequest", "BoostIntent", slots={"room": "landing"})
+    assert [c[2]["entity"] for c in house if c[1] == "heating_boost"] == ["climate.radiator_upper_hallway_thermostat"]
+    assert actions.temperature("hallway") == "The lower hallway is 18.1 degrees. The upper hallway is 17.8 degrees."
+    actions.room_lights("hallway", on=False)
+    assert house[-1] == ("light", "turn_off", {"entity_id": ["light.door", "light.hallway_lower", "light.a_upper_hallway_light"]})
+    vals = [v["name"]["value"] for v in next(t for t in model.interaction_model()["interactionModel"]["languageModel"]["types"] if t["name"] == "ROOM")["values"]]
+    assert "lower hallway" in vals and "upper hallway" in vals and "hallway" in vals
+
+
 def test_set_target_and_music(house):
     run("IntentRequest", "SetTargetIntent", slots={"temp": "21"})
     assert ("input_number", "set_value", {"entity_id": "input_number.target_temperature", "value": 21.0}) in house

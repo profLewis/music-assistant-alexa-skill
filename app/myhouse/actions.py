@@ -2,19 +2,24 @@
 
 from . import ha
 from .house import (BOOST_HOURS, CENTRAL, DAY_T, FORCE_OFF, GROUP, LEAD, NIGHT_T, OFF_TIME, ON_TIME, OVERRIDE, ROOMS, TARGET,
-                    WINTER, WINTER_END, WINTER_START, room)
+                    WINTER, WINTER_END, WINTER_START, room, rooms)
 from .pages import _num, boosted, lights_on, t1
 
 
+def _said(rs):
+    """How to say a list of rooms: "Lower hallway and Upper hallway"."""
+    return " and ".join(rs)
+
+
 def room_lights(name, on=None):
-    r = room(name)
-    if not r:
+    rs = rooms(name)
+    if not rs:
         return f"I don't know a room called {name}."
-    ents = ROOMS[r][0]
+    ents = [e for r in rs for e in ROOMS[r][0]]
     if on is None:
-        on = not lights_on(r)
+        on = not any(lights_on(r) for r in rs)
     ha.call("light", "turn_on" if on else "turn_off", {"entity_id": ents})
-    return f"{r} lights {'on' if on else 'off'}."
+    return f"{_said(rs)} lights {'on' if on else 'off'}."
 
 
 def all_lights(on):
@@ -23,27 +28,31 @@ def all_lights(on):
 
 
 def boost(name, toggle=True):
-    r = room(name)
-    if not r or not ROOMS[r][1]:
+    rs = [r for r in rooms(name) if ROOMS[r][1]]
+    if not rs:
         return f"There's no radiator I can boost in {name}."
-    rads, bst = ROOMS[r][1], boosted()
+    bst = boosted()
+    rads = [e for r in rs for e in ROOMS[r][1]]
     if toggle and any(e in bst for e in rads):
         for e in rads:
             ha.call("script", "heating_end_boost", {"entity": e, "quick": True})
-        return f"Boost ended in the {r.lower()}."
-    cur = _num(ha.state(ROOMS[r][2])) if ROOMS[r][2] else None
-    temp = min(28.0, round(((cur or _num(ha.state(TARGET)) or 19.0) + 1) * 2) / 2)
+        return f"Boost ended in the {_said(rs).lower()}."
     hours = _num(ha.state(BOOST_HOURS)) or 2
-    for e in rads:
-        ha.call("script", "heating_boost", {"entity": e, "temp": temp, "hours": hours})
-    return f"Boosting the {r.lower()} to {temp:.1f} degrees for {hours:g} hours."
+    said = []
+    for r in rs:   # each room one degree above its own temperature (two rooms: each its own)
+        cur = _num(ha.state(ROOMS[r][2])) if ROOMS[r][2] else None
+        temp = min(28.0, round(((cur or _num(ha.state(TARGET)) or 19.0) + 1) * 2) / 2)
+        for e in ROOMS[r][1]:
+            ha.call("script", "heating_boost", {"entity": e, "temp": temp, "hours": hours})
+        said.append(f"the {r.lower()} to {temp:.1f} degrees")
+    return f"Boosting {' and '.join(said)} for {hours:g} hours."
 
 
 def end_boost(name="all"):
     if (name or "all") == "all":
         ha.call("script", "heating_end_boost", {"entity": "all", "quick": True})
         return "All boosts ended."
-    return boost(name, toggle=True) if any(e in boosted() for e in ROOMS.get(room(name) or "", ([], [], None, []))[1]) else "No boost running there."
+    return boost(name, toggle=True) if any(e in boosted() for r in rooms(name) for e in ROOMS[r][1]) else "No boost running there."
 
 
 def _target_limits():
@@ -87,10 +96,10 @@ def set_target(t, tenth=None, half=None):
 def temperature(name=None):
     if not name:
         return f"The house is {t1(ha.state('sensor.house_temperature'))[:-1]} degrees; outside it's {t1(ha.state('sensor.outside_temperature'))[:-1]}."
-    r = room(name)
-    if not r or not ROOMS[r][2]:
+    rs = [r for r in rooms(name) if ROOMS[r][2]]
+    if not rs:
         return f"I don't have a thermometer in {name}."
-    return f"The {r.lower()} is {t1(ha.state(ROOMS[r][2]))[:-1]} degrees."
+    return " ".join(f"The {r.lower()} is {t1(ha.state(ROOMS[r][2]))[:-1]} degrees." for r in rs)
 
 
 def _players():
