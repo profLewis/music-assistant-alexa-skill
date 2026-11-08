@@ -7,6 +7,7 @@ ROOMS = {   # name: lights, radiators (climate), room thermometer, other spoken 
     "Living room": (["light.angle", "light.living_room_light_light_1", "light.key"], ["climate.radiator_living_room_thermostat"], "sensor.room_temperature_living_room", ["lounge", "sitting room"]),
     "Library": (["light.library_light_light_1", "light.library_light_left", "light.owl", "light.pin", "light.library_right"], ["climate.radiator_library_thermostat"], "sensor.room_temperature_library", []),
     "Kitchen": (["light.ballpoint", "light.light_kitchen_light", "light.light_kitchen_light_3", "light.light_kitchen_light_2", "light.snitch"], ["climate.control_radiator_kitchen"], "sensor.room_temperature_kitchen", []),
+    "Back garden": (["light.back_door_light", "light.hue_outdoor_spot_1"], [], None, ["garden", "outside"]),
     # THE HALLWAY IS TWO ROOMS (the user, 8 Nov 2026: "the upper and lower hallway are thermally uncoupled ... separate the hallway
     # into upper and lower hallway"): each its own lights, radiator and thermometer; "the hallway" alone means both (GROUPS)
     "Lower hallway": (["light.door", "light.hallway_lower"], ["climate.radiator_lower_hallway_thermostat"], "sensor.room_temperature_lower_hallway",
@@ -19,7 +20,6 @@ ROOMS = {   # name: lights, radiators (climate), room thermometer, other spoken 
                       ["landing", "upstairs hall", "upstairs hallway", "upper hall", "the landing"]),
     "Beau bedroom": (["light.frodo"], ["climate.radiator_harry_bedroom_thermostat"], "sensor.room_temperature_beau_bedroom", ["beau's bedroom", "beau's room"]),
     "Lewis study": (["light.smart_bulb"], ["climate.radiator_study_left_thermostat", "climate.radiator_study_right_thermostat"], "sensor.room_temperature_lewis_study", ["study", "lewis's study", "office"]),
-    "Back garden": (["light.back_door_light", "light.hue_outdoor_spot_1"], [], None, ["garden", "outside"]),
 }
 
 # A NAME FOR SEVERAL ROOMS: lights, boosts and temperatures act on each of them (the voice model lists these too)
