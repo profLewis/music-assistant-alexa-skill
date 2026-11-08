@@ -1,10 +1,11 @@
 """MyHouse voice model ("Alexa, open Peach Banana")."""
 
-from .house import ROOMS
+from .house import GROUPS, ROOMS
 
 
 def _room_values():
-    return [{"name": {"value": k.lower(), "synonyms": alts}} for k, (_l, _r, _t, alts) in ROOMS.items()]
+    return ([{"name": {"value": k.lower(), "synonyms": alts}} for k, (_l, _r, _t, alts) in ROOMS.items()]
+            + [{"name": {"value": k.lower(), "synonyms": alts}} for k, (_m, alts) in GROUPS.items()])   # ("hallway" = both halves)
 
 
 # THE ECHO'S OWN VOLUME while a panel is open (the user, 29 Oct: "when my app is playing on the echo it doesn't allow

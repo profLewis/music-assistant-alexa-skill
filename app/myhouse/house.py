@@ -5,7 +5,12 @@ ROOMS = {   # name: lights, radiators (climate), room thermometer, other spoken 
     "Living room": (["light.angle", "light.living_room_light_light_1", "light.key"], ["climate.radiator_living_room_thermostat"], "sensor.room_temperature_living_room", ["lounge", "sitting room"]),
     "Library": (["light.library_light_light_1", "light.library_light_left", "light.owl", "light.pin", "light.library_right"], ["climate.radiator_library_thermostat"], "sensor.room_temperature_library", []),
     "Kitchen": (["light.ballpoint", "light.light_kitchen_light", "light.light_kitchen_light_3", "light.light_kitchen_light_2", "light.snitch"], ["climate.control_radiator_kitchen"], "sensor.room_temperature_kitchen", []),
-    "Hallway": (["light.door", "light.hallway_lower", "light.a_upper_hallway_light"], ["climate.radiator_lower_hallway_thermostat", "climate.radiator_upper_hallway_thermostat"], "sensor.room_temperature_hallway", ["hall", "landing"]),
+    # THE HALLWAY IS TWO ROOMS (the user, 8 Nov 2026: "the upper and lower hallway are thermally uncoupled ... separate the hallway
+    # into upper and lower hallway"): each its own lights, radiator and thermometer; "the hallway" alone means both (GROUPS)
+    "Lower hallway": (["light.door", "light.hallway_lower"], ["climate.radiator_lower_hallway_thermostat"], "sensor.room_temperature_lower_hallway",
+                      ["hall", "downstairs hall", "downstairs hallway", "front hall", "lower hall", "the hall"]),
+    "Upper hallway": (["light.a_upper_hallway_light"], ["climate.radiator_upper_hallway_thermostat"], "sensor.room_temperature_upper_hallway",
+                      ["landing", "upstairs hall", "upstairs hallway", "upper hall", "the landing"]),
     "Downstairs bathroom": (["light.light_cellar_light", "light.light_loo_light"], ["climate.radiator_loo_thermostat"], "sensor.room_temperature_downstairs_bathroom", ["loo", "toilet", "cellar"]),
     "Bathroom": (["light.light_bathroom_light_2", "light.light_bathroom_light"], [], "sensor.room_temperature_bathroom", []),
     "Bedroom": (["light.bedroom"], ["climate.radiator_bedroom_left_thermostat", "climate.bedroom_radiator_bedroom_right_thermostat"], "sensor.room_temperature_bedroom", ["main bedroom"]),
@@ -15,12 +20,30 @@ ROOMS = {   # name: lights, radiators (climate), room thermometer, other spoken 
     "Back garden": (["light.back_door_light", "light.hue_outdoor_spot_1"], [], None, ["garden", "outside"]),
 }
 
+# A NAME FOR SEVERAL ROOMS: lights, boosts and temperatures act on each of them (the voice model lists these too)
+GROUPS = {"Hallway": (["Lower hallway", "Upper hallway"], ["hallways", "the hallway", "both hallways"])}
+
 TARGET = "input_number.target_temperature"
 BOOST_HOURS = "input_number.panel_boost_hours"
 BOOSTS = "sensor.heating_boosts"
 BOILER = "sensor.boiler"
 LEAD = "input_text.ma_player"
 GROUP = "input_text.ma_player_group"
+
+
+def rooms(name):
+    """Every room a spoken / tapped name means: a group ("hallway" - both halves) or the one room; [] if none."""
+    n = (name or "").strip().lower()
+    for key, (members, alts) in GROUPS.items():
+        if n == key.lower() or n in alts:
+            return list(members)
+    r = room(name)
+    if r:
+        return [r]
+    for key, (members, _alts) in GROUPS.items():   # "the hallway lights"
+        if key.lower() in n:
+            return list(members)
+    return []
 
 
 def room(name):
