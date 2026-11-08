@@ -2,6 +2,8 @@
 and what each page reads. Kept in one place so the voice model's room names and the screens agree."""
 
 ROOMS = {   # name: lights, radiators (climate), room thermometer, other spoken names
+    # THE ROOM ORDER (the user, 8 Nov 2026 - the control panel's order, docs/room_order.md in the HA config): the lights and
+    # heating screens list the rooms in this order
     "Living room": (["light.angle", "light.living_room_light_light_1", "light.key"], ["climate.radiator_living_room_thermostat"], "sensor.room_temperature_living_room", ["lounge", "sitting room"]),
     "Library": (["light.library_light_light_1", "light.library_light_left", "light.owl", "light.pin", "light.library_right"], ["climate.radiator_library_thermostat"], "sensor.room_temperature_library", []),
     "Kitchen": (["light.ballpoint", "light.light_kitchen_light", "light.light_kitchen_light_3", "light.light_kitchen_light_2", "light.snitch"], ["climate.control_radiator_kitchen"], "sensor.room_temperature_kitchen", []),
@@ -9,14 +11,14 @@ ROOMS = {   # name: lights, radiators (climate), room thermometer, other spoken 
     # into upper and lower hallway"): each its own lights, radiator and thermometer; "the hallway" alone means both (GROUPS)
     "Lower hallway": (["light.door", "light.hallway_lower"], ["climate.radiator_lower_hallway_thermostat"], "sensor.room_temperature_lower_hallway",
                       ["hall", "downstairs hall", "downstairs hallway", "front hall", "lower hall", "the hall"]),
-    "Upper hallway": (["light.a_upper_hallway_light"], ["climate.radiator_upper_hallway_thermostat"], "sensor.room_temperature_upper_hallway",
-                      ["landing", "upstairs hall", "upstairs hallway", "upper hall", "the landing"]),
     "Downstairs bathroom": (["light.light_cellar_light", "light.light_loo_light"], ["climate.radiator_loo_thermostat"], "sensor.room_temperature_downstairs_bathroom", ["loo", "toilet", "cellar"]),
+    "Sian study": (["light.sian_rope_lamp"], ["climate.radiator_beau_bedroom_thermostat"], "sensor.room_temperature_sian_study", ["sian's study"]),
     "Bathroom": (["light.light_bathroom_light_2", "light.light_bathroom_light"], [], "sensor.room_temperature_bathroom", []),
     "Bedroom": (["light.bedroom"], ["climate.radiator_bedroom_left_thermostat", "climate.bedroom_radiator_bedroom_right_thermostat"], "sensor.room_temperature_bedroom", ["main bedroom"]),
-    "Lewis study": (["light.smart_bulb"], ["climate.radiator_study_left_thermostat", "climate.radiator_study_right_thermostat"], "sensor.room_temperature_lewis_study", ["study", "lewis's study", "office"]),
-    "Sian study": (["light.sian_rope_lamp"], ["climate.radiator_beau_bedroom_thermostat"], "sensor.room_temperature_sian_study", ["sian's study"]),
+    "Upper hallway": (["light.a_upper_hallway_light"], ["climate.radiator_upper_hallway_thermostat"], "sensor.room_temperature_upper_hallway",
+                      ["landing", "upstairs hall", "upstairs hallway", "upper hall", "the landing"]),
     "Beau bedroom": (["light.frodo"], ["climate.radiator_harry_bedroom_thermostat"], "sensor.room_temperature_beau_bedroom", ["beau's bedroom", "beau's room"]),
+    "Lewis study": (["light.smart_bulb"], ["climate.radiator_study_left_thermostat", "climate.radiator_study_right_thermostat"], "sensor.room_temperature_lewis_study", ["study", "lewis's study", "office"]),
     "Back garden": (["light.back_door_light", "light.hue_outdoor_spot_1"], [], None, ["garden", "outside"]),
 }
 
@@ -52,7 +54,7 @@ def room(name):
     for key, (_l, _r, _t, alts) in ROOMS.items():
         if n == key.lower() or n in alts or n.rstrip("s") == key.lower():
             return key
-    for key in ROOMS:   # "the kitchen", "kitchen lights"
+    for key in sorted(ROOMS, key=len, reverse=True):   # "the kitchen", "kitchen lights" (longest first: "beau bedroom lights" is not the Bedroom)
         if key.lower() in n:
             return key
     return None
