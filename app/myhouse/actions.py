@@ -46,13 +46,37 @@ def end_boost(name="all"):
     return boost(name, toggle=True) if any(e in boosted() for e in ROOMS.get(room(name) or "", ([], [], None, []))[1]) else "No boost running there."
 
 
+def _target_limits():
+    """The lowest and highest the house target may be: the target's own min / max, narrowed by the radiator valves' own
+    (their min_temp / max_temp) - in the house's units, as Home Assistant gives them."""
+    lo, hi = _num(ha.attr(TARGET, "min")), _num(ha.attr(TARGET, "max"))
+    lo, hi = 10.0 if lo is None else lo, 32.0 if hi is None else hi
+    rads = [s.get("attributes") or {} for k, s in ha.states().items() if k.startswith("climate.radiator_")]
+    mx = [x for x in (_num(a.get("max_temp")) for a in rads) if x is not None]
+    mn = [x for x in (_num(a.get("min_temp")) for a in rads) if x is not None]
+    return (max([lo] + mn), min([hi] + mx))
+
+
 def set_target(t):
+    """A number said (on its own, or "set the house to ..."): the house target (the user, 8 Nov 2026: "when I say a number between 9
+    and 40 ... and I am working in degrees C, then set the house target to that value (equivalent in F if that's the units). If over
+    Tmax set to Tmax, if under Tmin set to Tmin. Announce that you are setting the house temperature target to X degrees.")"""
     v = _num(t)
-    if v is None or not 10 <= v <= 26:
-        return "Pick a temperature between 10 and 26 degrees."
-    v = round(v * 2) / 2
-    ha.call("input_number", "set_value", {"entity_id": TARGET, "value": v})
-    return f"The house target is now {v:.1f} degrees."
+    f = "F" in str(ha.attr("sensor.house_temperature", "unit_of_measurement", "") or ha.attr(TARGET, "unit_of_measurement", "") or "")
+    lo_say, hi_say = (48, 104) if f else (9, 40)   # (9-40 C; the same in F)
+    if v is None or not lo_say <= v <= hi_say:
+        return f"Say a temperature between {lo_say} and {hi_say} degrees."
+    lo, hi = _target_limits()
+    w = min(max(v, lo), hi)
+    w = float(round(w)) if f else round(w * 2) / 2
+    ha.call("input_number", "set_value", {"entity_id": TARGET, "value": w})
+    num = f"{w:.0f}" if f else f"{w:.1f}"
+    note = ""
+    if v > hi:
+        note = " That's the most the radiators allow."
+    elif v < lo or w <= 10 and not f:
+        note = " That's the lowest - the heating is off." if w <= (50 if f else 10) else " That's the lowest it goes."
+    return f"Setting the house temperature target to {num} degrees.{note}"
 
 
 def temperature(name=None):
