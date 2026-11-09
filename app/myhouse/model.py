@@ -94,6 +94,38 @@ STATIONS = [
 ]
 
 
+HEAT_WAY = {"name": "HEAT_WAY", "values": [
+    {"name": {"value": "up", "synonyms": ["increase", "raise", "turn up", "warmer", "hotter", "higher", "boost", "warm up", "heat up",
+                                          "bump up", "put up", "more", "warm"]}},
+    {"name": {"value": "down", "synonyms": ["decrease", "lower", "reduce", "turn down", "cooler", "colder", "cool down", "put down",
+                                            "less", "cool", "drop"]}}]}
+
+
+def _boost_samples():
+    """"boost the kitchen", "increase the temperature in the living room by two degrees", "make Beau's room warmer for an hour",
+    "turn the heating down in the bedroom by one degree for thirty minutes" - each opening with every by / for ending."""
+    R = "{room}"
+    heads = [f"boost the {R}", f"boost {R}", f"boost the {R} radiator", f"boost the heating in the {R}", f"boost the temperature in the {R}",
+             f"boost the {R} heating", f"warm up the {R}", f"heat the {R}", f"heat up the {R}",
+             f"{{way}} the temperature in the {R}", f"{{way}} the heating in the {R}", f"{{way}} the heat in the {R}", f"{{way}} the {R} temperature",
+             f"{{way}} the {R} heating", f"{{way}} the {R} radiator", f"{{way}} the radiator in the {R}", f"{{way}} the {R}",
+             f"turn the heating {{way}} in the {R}", f"turn the temperature {{way}} in the {R}", f"turn the {R} heating {{way}}", f"turn the {R} {{way}}",
+             f"turn the {R} radiator {{way}}", f"make the {R} {{way}}", f"make it {{way}} in the {R}", f"make {R} {{way}}"]
+    tails = ["", " by {by} degrees", " by {by} degree", " by {by}", " for {dur}", " by {by} degrees for {dur}", " by {by} degree for {dur}",
+             " for {dur} by {by} degrees"]
+    out = [h + t for h in heads for t in tails]
+    out += [f"make the {R} {{by}} degrees {{way}}", f"make the {R} {{by}} degree {{way}}", f"boost the {R} {{by}} degrees", f"boost the {R} {{by}} degrees for {{dur}}",
+            f"make the {R} {{by}} degrees {{way}} for {{dur}}"]
+    # (no room: the room of the Echo spoken to)
+    out += ["boost the heating", "boost the heating in here", "boost the heating for {dur}", "boost the heating by {by} degrees",
+            "{way} the heating", "{way} the heating by {by} degrees", "{way} the heating for {dur}", "turn the heating {way}",
+            "turn the heating {way} by {by} degrees", "{way} the temperature in here", "{way} the temperature in here by {by} degrees"]
+    return out
+
+
+BOOST_SAMPLES = _boost_samples()
+
+
 def interaction_model():
     R = "{room}"
     intents = [
@@ -105,8 +137,13 @@ def interaction_model():
         {"name": "LightsOffIntent", "slots": [{"name": "room", "type": "ROOM"}],
          "samples": [f"turn off the {R} lights", f"turn the {R} lights off", f"{R} lights off", f"switch off the {R} lights",
                      f"turn off the lights in the {R}", "turn off all the lights", "all lights off"]},
-        {"name": "BoostIntent", "slots": [{"name": "room", "type": "ROOM"}],
-         "samples": [f"boost the {R}", f"boost {R}", f"boost the {R} radiator", f"warm up the {R}", f"heat the {R}"]},
+        # ONE ROOM WARMER / COOLER (the user, 9 Nov 2026: "if I ask Alexa to increase the temperature or boost the temperature in xx
+        # room then boost it by 1 degree. If I qualify it with eg by 2 degrees then do that. Just for the room mentioned. Can also
+        # say how long for") - by {by} degrees (default 1), for {dur} (default the Boost length), {way} up or down (HEAT_WAY);
+        # the house's script.heating_room_bump does it and says what it did
+        {"name": "BoostIntent", "slots": [{"name": "room", "type": "ROOM"}, {"name": "by", "type": "AMAZON.NUMBER"},
+                                          {"name": "dur", "type": "AMAZON.DURATION"}, {"name": "way", "type": "HEAT_WAY"}],
+         "samples": BOOST_SAMPLES},
         {"name": "EndBoostIntent", "slots": [{"name": "room", "type": "ROOM"}],
          "samples": [f"stop the boost in the {R}", f"end the {R} boost", "stop the boosts", "end all boosts"]},
         {"name": "SetTargetIntent", "slots": [{"name": "temp", "type": "AMAZON.NUMBER"}, {"name": "tenth", "type": "AMAZON.NUMBER"},
@@ -200,7 +237,7 @@ def interaction_model():
     types = [
         {"name": "ASK_THING", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in ASK_THINGS]},
         {"name": "STATION", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in STATIONS]},
-        VOLUME_TYPE,
+        VOLUME_TYPE, HEAT_WAY,
         {"name": "ROOM", "values": _room_values()},
         {"name": "PAGE", "values": [{"name": {"value": "home", "synonyms": ["the house", "summary", "front page"]}},
                                     {"name": {"value": "lights", "synonyms": ["the lights", "lighting"]}},

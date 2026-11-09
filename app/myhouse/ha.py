@@ -81,6 +81,17 @@ def ask_ai(text, conversation_id="", timeout=6.5):
     return r.json().get("service_response") or {}
 
 
+def room_bump(room, by=None, dur=None, way="up"):
+    """script.heating_room_bump: ONE room warmer / cooler by n degrees for a while, through the house's own boost ({ok, say, rooms,
+    temps, hours}) - the house works out the room, the degrees and the words. Raises if it fails."""
+    body = {"room": room or "", "way": way or "up", "source": "skill", **({"by": by} if by not in (None, "", "?") else {}),
+            **({"dur": dur} if dur not in (None, "", "?") else {})}
+    r = requests.post(f"{BASE}/services/script/heating_room_bump?return_response", headers=_headers(), json=body, timeout=6.5)
+    r.raise_for_status()
+    _cache["at"] = 0.0
+    return r.json().get("service_response") or {}
+
+
 def hush():
     """script.peach_hush: a timer or alarm the house is sounding on the Moon is stopped ({stopped, what}). Raises if it fails."""
     r = requests.post(f"{BASE}/services/script/peach_hush?return_response", headers=_headers(), json={}, timeout=3)

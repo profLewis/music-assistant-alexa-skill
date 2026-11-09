@@ -42,6 +42,7 @@ def _house_not_reached(monkeypatch):
     monkeypatch.setattr(ha, "ask_ai", refuse)
     monkeypatch.setattr(ha, "play_this", refuse)
     monkeypatch.setattr(ha, "good_morning", refuse)
+    monkeypatch.setattr(ha, "room_bump", refuse)
 
 
 def run(req_type, intent=None, extra=None, iface=SHOW, slots=None, new=True):
@@ -84,10 +85,109 @@ def test_tap_room_lights_toggles_and_redraws(house):
     assert r["directives"][0]["type"] == "Alexa.Presentation.APL.RenderDocument" and "outputSpeech" not in r
 
 
-def test_voice_boost_living_room(house):
+@pytest.fixture
+def bump(monkeypatch):
+    """script.heating_room_bump stood in for: what was asked, and the house's answer (as the real script words it)."""
+    asked = []
+
+    def fake(room, by=None, dur=None, way="up"):
+        asked.append({"room": room, "by": by, "dur": dur, "way": way})
+        if room in ("bathroom",):
+            return {"ok": False, "say": "The bathroom has no radiator I can control."}
+        return {"ok": True, "say": f"Boosting the {room} by {by or 1} degrees.", "temps": [22.0]}
+    monkeypatch.setattr(ha, "room_bump", fake)
+    return asked
+
+
+def _slots(**kw):
+    """slots with Alexa's own resolution ("lounge" -> "living room"): {name: (said, resolved or None)}"""
+    out = {}
+    for k, (said, res) in kw.items():
+        out[k] = {"name": k, "value": said}
+        if res:
+            out[k]["resolutions"] = {"resolutionsPerAuthority": [{"authority": "x", "status": {"code": "ER_SUCCESS_MATCH"},
+                                                                  "values": [{"value": {"name": res, "id": res}}]}]}
+    return out
+
+
+def run_slots(intent, iface=SHOW, new=True, **kw):
+    ev = build_event("IntentRequest", intent, {}, new, iface, "en-GB")
+    ev["request"]["intent"]["slots"] = _slots(**kw)
+    return json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))
+
+
+def test_voice_boost_living_room(house, bump):
+    # (9 Nov 2026: one room, by n degrees, for a while - the house's script.heating_room_bump does it and words the answer)
     r = run("IntentRequest", "BoostIntent", slots={"room": "lounge"})["response"]
-    assert ("script", "heating_boost", {"entity": "climate.radiator_living_room_thermostat", "temp": 20.0, "hours": 2.0}) in house
-    assert "living room" in r["outputSpeech"]["ssml"].lower()
+    assert bump == [{"room": "lounge", "by": None, "dur": None, "way": "up"}]
+    assert "Boosting the lounge by 1 degrees." in r["outputSpeech"]["ssml"]
+    assert not [c for c in house if c[1] == "heating_boost"]   # (never the radiators straight from the skill)
+
+
+def test_boost_by_and_for(house, bump):
+    run_slots("BoostIntent", room=("Beau's room", "beau bedroom"), by=("2", None), dur=("PT30M", None))
+    assert bump[-1] == {"room": "beau bedroom", "by": "2", "dur": "PT30M", "way": "up"}
+    run_slots("BoostIntent", room=("the kitchen", "kitchen"), dur=("PT1H", None), way=("increase", "up"))
+    assert bump[-1] == {"room": "kitchen", "by": None, "dur": "PT1H", "way": "up"}
+
+
+def test_turn_down(house, bump):
+    run_slots("BoostIntent", room=("bedroom", "bedroom"), by=("1", None), way=("turn down", "down"))
+    assert bump[-1]["way"] == "down" and bump[-1]["by"] == "1"
+    run_slots("BoostIntent", room=("study", "lewis study"), way=("colder", None))   # (said, not resolved: still down)
+    assert bump[-1] == {"room": "lewis study", "by": None, "dur": None, "way": "down"}
+
+
+def test_boost_no_radiator_room_says_so(house, bump):
+    r = run_slots("BoostIntent", room=("bathroom", "bathroom"))["response"]
+    assert "no radiator" in r["outputSpeech"]["ssml"]
+
+
+def test_boost_on_the_moon_keeps_the_panel(house, bump):
+    # (inside the open panel: said, no page drawn over it, session kept - no shouldEndSession)
+    r = run_slots("BoostIntent", iface=MOON, new=False, room=("kitchen", "kitchen"), by=("2", None))["response"]
+    assert "Boosting the kitchen by 2 degrees." in r["outputSpeech"]["ssml"]
+    assert r.get("shouldEndSession") is not True and not r.get("directives")
+    # (no room said on the Moon: the Moon's own room, the kitchen)
+    run_slots("BoostIntent", iface=MOON, new=False, way=("turn up", "up"))
+    assert bump[-1]["room"] == "kitchen"
+
+
+def test_boost_one_shot_ends(house, bump):
+    # ("Alexa, ask Peach Banana to boost the living room by 2 degrees" on an Echo without a screen / with the panel shut: said, ended)
+    r = run_slots("BoostIntent", iface=DOT, room=("living room", "living room"), by=("2", None))["response"]
+    assert r["shouldEndSession"] is True and "living room" in r["outputSpeech"]["ssml"]
+    r = run_slots("BoostIntent", iface=MOON, new=True, room=("library", "library"))["response"]
+    assert r["shouldEndSession"] is True and "library" in r["outputSpeech"]["ssml"]
+    # (no room on another Echo: "here" - the house takes the room of the Echo just spoken to)
+    run_slots("BoostIntent", iface=DOT, way=("up", "up"))
+    assert bump[-1]["room"] == "here"
+
+
+def test_boost_house_down(house, monkeypatch):
+    def broken(*a, **k):
+        raise RuntimeError("down")
+    monkeypatch.setattr(ha, "room_bump", broken)
+    r = run_slots("BoostIntent", iface=DOT, room=("kitchen", "kitchen"))["response"]
+    assert "didn't answer" in r["outputSpeech"]["ssml"] and r["shouldEndSession"] is True
+
+
+def test_boost_model_samples():
+    I = {i["name"]: i for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"]}
+    b = I["BoostIntent"]
+    assert [x["name"] for x in b["slots"]] == ["room", "by", "dur", "way"]
+    said = set(b["samples"])
+    for s in ["boost the {room}", "boost the {room} by {by} degrees for {dur}", "{way} the temperature in the {room} by {by} degrees",
+              "make it {way} in the {room}", "make the {room} {way} for {dur}", "turn the heating {way} in the {room} by {by} degree",
+              "boost the heating"]:
+        assert s in said, s
+    # (9 Nov 11:18 "increase the temperature in the living room by two degrees" went to TemperatureIntent; "make it hotter in the
+    #  living room" to EndBoostIntent - both now have their own BoostIntent sample)
+    assert "{way} the temperature in the {room} by {by} degrees" in said and "make it {way} in the {room}" in said
+    ways = next(t for t in model.interaction_model()["interactionModel"]["languageModel"]["types"] if t["name"] == "HEAT_WAY")["values"]
+    assert {v["name"]["value"] for v in ways} == {"up", "down"}
+    from myhouse.house import room
+    assert room("upstairs") == "Upper hallway" and room("downstairs loo") == "Downstairs bathroom" and room("beau room") == "Beau bedroom"
 
 
 def test_hallway_is_two_rooms_and_hallway_means_both(house):
@@ -100,11 +200,12 @@ def test_hallway_is_two_rooms_and_hallway_means_both(house):
     st = ha.states()
     st["sensor.room_temperature_lower_hallway"] = {"state": "18.1", "attributes": {}}
     st["sensor.room_temperature_upper_hallway"] = {"state": "17.8", "attributes": {}}
-    run("IntentRequest", "BoostIntent", slots={"room": "hallway"})
+    # (a tap on the screen's Boost still boosts both halves, each 1 degree above its own temperature)
+    actions.boost("hallway", toggle=False)
     assert ("script", "heating_boost", {"entity": "climate.radiator_lower_hallway_thermostat", "temp": 19.0, "hours": 2.0}) in house
     assert ("script", "heating_boost", {"entity": "climate.radiator_upper_hallway_thermostat", "temp": 19.0, "hours": 2.0}) in house
     house.clear()
-    run("IntentRequest", "BoostIntent", slots={"room": "landing"})
+    actions.boost("landing", toggle=False)
     assert [c[2]["entity"] for c in house if c[1] == "heating_boost"] == ["climate.radiator_upper_hallway_thermostat"]
     assert actions.temperature("hallway") == "The lower hallway is 18.1 degrees. The upper hallway is 17.8 degrees."
     actions.room_lights("hallway", on=False)
@@ -135,7 +236,7 @@ def test_voice_model_rooms_and_invocation():
     m = model.interaction_model()["interactionModel"]["languageModel"]
     assert m["invocationName"] == "peach banana"
     rooms = next(t for t in m["types"] if t["name"] == "ROOM")["values"]
-    assert {"name": {"value": "living room", "synonyms": ["lounge", "sitting room"]}} in rooms
+    assert {"name": {"value": "living room", "synonyms": ["lounge", "sitting room", "front room"]}} in rooms
 
 
 def test_root_endpoint_hands_cat_ballou_requests_to_it(client, house, monkeypatch):

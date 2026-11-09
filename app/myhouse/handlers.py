@@ -182,7 +182,9 @@ class Command(AbstractRequestHandler):
             say = {
                 "LightsOnIntent": lambda: actions.room_lights(rm, True) if rm else actions.all_lights(True),
                 "LightsOffIntent": lambda: actions.room_lights(rm, False) if rm else actions.all_lights(False),
-                "BoostIntent": lambda: actions.boost(rm or "", toggle=False),
+                "BoostIntent": lambda: actions.room_heat(_resolved(handler_input, "room") or rm or ("kitchen" if _html(handler_input) else "here"),
+                                                         get_slot_value(handler_input, "by"), get_slot_value(handler_input, "dur"),
+                                                         _resolved(handler_input, "way") or get_slot_value(handler_input, "way")),
                 "EndBoostIntent": lambda: actions.end_boost(rm or "all"),
                 "SetTargetIntent": lambda: actions.set_target(get_slot_value(handler_input, "temp"), get_slot_value(handler_input, "tenth"), get_slot_value(handler_input, "half")),
                 "TemperatureIntent": lambda: actions.temperature(rm),
@@ -191,9 +193,14 @@ class Command(AbstractRequestHandler):
         except Exception:
             log.exception("MyHouse: %s failed", name)
             say = "Sorry, the house didn't answer."
-        if name == "SetTargetIntent" and _html(handler_input):
+        if name in ("SetTargetIntent", "BoostIntent") and _html(handler_input):
             # (the whole control panel is open: a drawn page would replace it - say it; the panel and the session stay)
-            return handler_input.response_builder.speak(say).response
+            rb = handler_input.response_builder.speak(say)
+            env = handler_input.request_envelope
+            if name == "BoostIntent" and env.session is not None and env.session.new:
+                # ("Alexa, ask Peach Banana to boost the kitchen" with the panel shut: a one-shot - said, and done)
+                rb.set_should_end_session(True)
+            return rb.response
         return _reply(handler_input, say, INTENT_PAGE[name])
 
 
