@@ -9,6 +9,7 @@ from golden_cases import build_event
 from myhouse import actions, deploy, ha, handlers, model, pages
 
 SHOW = {"Alexa.Presentation.APL": {"runtime": {"maxVersion": "2023.2"}}}
+MOON = {**SHOW, "Alexa.Presentation.HTML": {"runtime": {"maxVersion": "1.1"}}}   # (the Moon: an Echo Show with the panel's web app)
 DOT = {}
 STATES = {
     "sensor.outside_temperature": "11.234", "sensor.house_temperature": "19.46", "input_number.target_temperature": "19.5",
@@ -43,8 +44,8 @@ def _house_not_reached(monkeypatch):
     monkeypatch.setattr(ha, "good_morning", refuse)
 
 
-def run(req_type, intent=None, extra=None, iface=SHOW, slots=None):
-    ev = build_event(req_type, intent, extra or {}, True, iface, "en-GB")
+def run(req_type, intent=None, extra=None, iface=SHOW, slots=None, new=True):
+    ev = build_event(req_type, intent, extra or {}, new, iface, "en-GB")
     if slots:
         ev["request"]["intent"]["slots"] = {k: {"name": k, "value": v} for k, v in slots.items()}
     out = handlers.build().invoke(_env(ev), None)
@@ -173,8 +174,8 @@ def test_launch_opens_the_whole_control_panel_when_the_show_can(house, monkeypat
     d = r["directives"][0]
     assert d["type"] == "Alexa.Presentation.HTML.Start" and d["request"]["uri"].startswith("https://ha.example/local/catballou.html?v=")
     assert d["data"]["code"] == "CODE1" and d["data"]["page"] == "home" and d["data"]["state"]
-    monkeypatch.setattr(signin, "_opts", lambda: {})   # no password set: the drawn screens instead
-    assert run("LaunchRequest", iface=iface)["response"]["directives"][0]["type"] == "Alexa.Presentation.APL.RenderDocument"
+    monkeypatch.setattr(signin, "_opts", lambda: {})   # no password set: the drawn screens instead (a Show without the web app)
+    assert run("LaunchRequest", iface=SHOW)["response"]["directives"][0]["type"] == "Alexa.Presentation.APL.RenderDocument"
 
 
 def test_widget_packages_and_install_message(house, monkeypatch):
@@ -385,8 +386,8 @@ def test_a_timer_with_no_length_is_asked_about(house):
 
 def test_play_this_goes_to_the_house_and_stays_open(house, monkeypatch):
     asked = []
-    monkeypatch.setattr(ha, "play_this", lambda t: asked.append(t) or {"ok": True, "name": "Born to Run", "kind": "album"})
-    r = run("IntentRequest", "PlayThisIntent", slots={"what": "born to run"})["response"]
+    monkeypatch.setattr(ha, "play_this", lambda t, ma_player_id=None: asked.append(t) or {"ok": True, "name": "Born to Run", "kind": "album"})
+    r = run("IntentRequest", "PlayThisIntent", slots={"what": "born to run"}, iface=MOON, new=False)["response"]   # (the panel open)
     assert asked == ["born to run"] and "Playing Born to Run" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
 
 
@@ -397,7 +398,99 @@ def test_stop_stops_the_music_and_keeps_the_panel(house, monkeypatch):
     r = run("IntentRequest", "AMAZON.StopIntent")["response"]
     assert done == ["pause"] and not r.get("shouldEndSession")
     monkeypatch.setattr(handlers, "_music_playing", lambda: False)
-    assert run("IntentRequest", "AMAZON.StopIntent")["response"]["shouldEndSession"] is True
+    # (9 Nov 2026: said again with nothing playing, it no longer closes - only "close Peach Banana" does)
+    assert "shouldEndSession" not in run("IntentRequest", "AMAZON.StopIntent")["response"]
+
+
+# "ALEXA, STOP" TRAPPED (the user, 9 Nov 2026: "can't you trap that and interpret better?") - golden responses on the Moon
+# (an Echo Show with the panel's web app): stop / cancel / pause / be quiet stop what the house is sounding, the panel stays.
+HUSH = ["AMAZON.StopIntent", "AMAZON.CancelIntent", "AMAZON.PauseIntent", "QuietIntent"]
+
+
+@pytest.fixture
+def journal(monkeypatch):
+    lines = []
+    monkeypatch.setattr(ha, "journal", lambda body: lines.append(body))
+    monkeypatch.setattr(ha, "hush", lambda: {"stopped": False, "what": "nothing"})
+    return lines
+
+
+@pytest.mark.parametrize("intent", HUSH)
+def test_stop_with_music_playing_pauses_it_and_keeps_the_panel(house, monkeypatch, journal, intent):
+    done = []
+    monkeypatch.setattr(handlers, "_music_playing", lambda: True)
+    monkeypatch.setattr(actions, "music", lambda a: done.append(a))
+    out = run("IntentRequest", intent, iface=MOON, new=False)
+    assert out["response"] == {}   # (golden: no words, no directives, no shouldEndSession - the panel up, the microphone off)
+    assert done == ["pause"] and journal == [{"type": "stop-trapped", "intent": intent, "did": "music"}]
+
+
+@pytest.mark.parametrize("intent", HUSH)
+def test_stop_with_nothing_playing_does_nothing_and_keeps_the_panel(house, monkeypatch, journal, intent):
+    monkeypatch.setattr(handlers, "_music_playing", lambda: False)
+    monkeypatch.setattr(actions, "music", lambda a: pytest.fail("nothing to pause"))
+    out = run("IntentRequest", intent, iface=MOON, new=False)
+    assert out["response"] == {}
+    assert not [c for c in house if c[0] == "media_player"] and journal[-1]["did"] == "nothing"
+
+
+def test_stop_stops_the_house_s_timer_or_alarm_first(house, monkeypatch, journal):
+    monkeypatch.setattr(ha, "hush", lambda: {"stopped": True, "what": "alert"})
+    monkeypatch.setattr(handlers, "_music_playing", lambda: True)
+    monkeypatch.setattr(actions, "music", lambda a: pytest.fail("the music carries on after the alarm"))
+    out = run("IntentRequest", "AMAZON.StopIntent", iface=MOON, new=False)
+    assert out["response"] == {} and journal[-1]["did"] == "alert"
+
+
+def test_stop_pauses_an_announcement_on_the_moon_screen(house, monkeypatch, journal):
+    monkeypatch.setattr(handlers, "_music_playing", lambda: False)
+    st = ha.states()
+    st["media_player.the_moon_screen"] = {"entity_id": "media_player.the_moon_screen", "state": "playing", "attributes": {}}
+    out = run("IntentRequest", "AMAZON.StopIntent", iface=MOON, new=False)
+    assert out["response"] == {} and ("media_player", "media_pause", {"entity_id": "media_player.the_moon_screen"}) in house
+    assert journal[-1]["did"] == "screen"
+
+
+def test_stop_survives_the_house_not_answering(house, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("down")
+    monkeypatch.setattr(ha, "hush", boom)
+    monkeypatch.setattr(ha, "journal", boom)
+    monkeypatch.setattr(handlers, "_music_playing", lambda: False)
+    assert run("IntentRequest", "AMAZON.StopIntent", iface=MOON, new=False)["response"] == {}
+
+
+def test_stop_the_alarm_while_the_house_s_is_sounding(house, monkeypatch, journal):
+    monkeypatch.setattr(ha, "hush", lambda: {"stopped": True, "what": "alert"})
+    res = {"status": {"code": "ER_SUCCESS_MATCH"}}
+    ev_slots = {"op": {"name": "op", "value": "stop", "resolutions": {"resolutionsPerAuthority": [{**res, "values": [{"value": {"name": "stop", "id": "stop"}}]}]}},
+                "thing": {"name": "thing", "value": "alarm", "resolutions": {"resolutionsPerAuthority": [{**res, "values": [{"value": {"name": "alarm", "id": "alarm"}}]}]}}}
+    ev = build_event("IntentRequest", "AlarmOpIntent", {}, False, MOON, "en-GB")
+    ev["request"]["intent"]["slots"] = ev_slots
+    r = json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))["response"]
+    assert r == {} and journal[-1] == {"type": "stop-trapped", "intent": "AlarmOpIntent stop", "did": "alert"}
+
+
+def test_close_peach_banana_ends_it(house, journal):
+    r = run("IntentRequest", "ExitIntent", iface=MOON, new=False)["response"]
+    assert r["shouldEndSession"] is True and "Closing Peach Banana" in r["outputSpeech"]["ssml"]
+    assert journal == [{"type": "exit", "intent": "ExitIntent"}]
+
+
+def test_stop_on_an_echo_without_a_screen_still_ends(house, monkeypatch, journal):
+    monkeypatch.setattr(handlers, "_music_playing", lambda: False)
+    assert run("IntentRequest", "AMAZON.StopIntent", iface={})["response"]["shouldEndSession"] is True
+
+
+def test_quiet_and_exit_are_in_the_model():
+    I = model.interaction_model()["interactionModel"]["languageModel"]["intents"]
+    names = {i["name"]: i for i in I}
+    assert "be quiet" in names["QuietIntent"]["samples"] and "close peach banana" in names["ExitIntent"]["samples"]
+    assert not any("exit" in x.split() for x in names["ExitIntent"]["samples"])   # (Amazon keeps "exit" itself)
+    seen = {}
+    for i in I:   # (Amazon refuses a model with the same sample in two intents)
+        for x in i.get("samples", []):
+            assert seen.setdefault(x.lower(), i["name"]) == i["name"], (x, seen[x.lower()], i["name"])
 
 
 def test_good_morning_is_the_house_s_and_stays_open(house, monkeypatch):
@@ -429,8 +522,8 @@ def test_turn_on_the_lights_is_not_music(house, monkeypatch):
 
 def test_turn_on_radio_is_played(house, monkeypatch):
     asked = []
-    monkeypatch.setattr(ha, "play_this", lambda t: asked.append(t) or {"ok": True, "name": "BBC Radio 4", "kind": "radio"})
-    r = run("IntentRequest", "PlayThisIntent", slots={"what": "radio four"})["response"]
+    monkeypatch.setattr(ha, "play_this", lambda t, ma_player_id=None: asked.append(t) or {"ok": True, "name": "BBC Radio 4", "kind": "radio"})
+    r = run("IntentRequest", "PlayThisIntent", slots={"what": "radio four"}, iface=MOON, new=False)["response"]
     assert asked == ["radio four"] and "Playing BBC Radio 4" in r["outputSpeech"]["ssml"]
 
 
@@ -532,7 +625,7 @@ def test_a_number_out_of_range_is_refused(house, said):
 
 
 def test_voice_model_takes_a_bare_number():
-    from app.myhouse import model
+    from myhouse import model
     it = next(i for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"] if i["name"] == "SetTargetIntent")
     assert "{temp}" in it["samples"]
 

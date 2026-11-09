@@ -184,6 +184,14 @@ def interaction_model():
         {"name": "PodcastIntent", "slots": [{"name": "title", "type": "AMAZON.SearchQuery"}],
          "samples": ["play the podcast {title}", "play podcast {title}", "play the latest podcast {title}", "play the latest episode of {title}",
                      "listen to the podcast {title}", "put on the podcast {title}"]},
+        # "BE QUIET" AND "CLOSE" (the user, 9 Nov 2026: stop / cancel / pause / be quiet stop what the house is sounding and keep
+        # the panel - handlers.hush; only an explicit close / quit ends Peach Banana. No "exit": Amazon keeps that word itself)
+        {"name": "QuietIntent", "slots": [],
+         "samples": ["be quiet", "quiet", "quiet please", "shut up", "hush", "silence", "that's enough", "enough", "stop it", "stop that",
+                     "stop talking", "stop the noise", "stop the sound", "stop the announcement", "stop ringing", "turn that off", "shush"]},
+        {"name": "ExitIntent", "slots": [],
+         "samples": ["close peach banana", "close peach bananas", "quit peach banana", "close the panel", "close the app", "quit the app",
+                     "close the control panel", "shut down peach banana", "turn off peach banana", "switch off peach banana", "quit", "close"]},
         {"name": "AMAZON.PauseIntent", "samples": []}, {"name": "AMAZON.ResumeIntent", "samples": []},
         {"name": "AMAZON.HelpIntent", "samples": []}, {"name": "AMAZON.StopIntent", "samples": []},
         {"name": "AMAZON.CancelIntent", "samples": []}, {"name": "AMAZON.FallbackIntent", "samples": []},

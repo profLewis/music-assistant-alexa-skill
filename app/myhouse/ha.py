@@ -79,3 +79,23 @@ def ask_ai(text, conversation_id="", timeout=6.5):
     r = requests.post(f"{BASE}/services/script/ai_ask?return_response", headers=_headers(), json={"text": text, "conversation_id": conversation_id}, timeout=timeout)
     r.raise_for_status()
     return r.json().get("service_response") or {}
+
+
+def hush():
+    """script.peach_hush: a timer or alarm the house is sounding on the Moon is stopped ({stopped, what}). Raises if it fails."""
+    r = requests.post(f"{BASE}/services/script/peach_hush?return_response", headers=_headers(), json={}, timeout=3)
+    r.raise_for_status()
+    _cache["at"] = 0.0
+    return r.json().get("service_response") or {}
+
+
+def journal(body):
+    """A line in the skill journal (event skill_journal, skill "peach banana"), in the background - never slows an answer."""
+    import threading
+
+    def go():
+        try:
+            requests.post(f"{BASE}/events/skill_journal", headers=_headers(), json={**body, "skill": "peach banana"}, timeout=4)
+        except Exception:
+            pass
+    threading.Thread(target=go, daemon=True).start()

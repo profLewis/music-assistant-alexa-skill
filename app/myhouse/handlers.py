@@ -451,6 +451,8 @@ class HandOff(AbstractRequestHandler):
             text = f"set a timer for {d}"
         elif name == "AlarmOpIntent":
             op, thing = _resolved(handler_input, "op"), _resolved(handler_input, "thing")
+            if op in ("stop", "snooze") and hush(handler_input, f"AlarmOpIntent {op}") == "alert":
+                return rb.response   # ("stop the alarm" while the house's own is sounding: stopped, the panel kept)
             if op == "show":
                 said = alerts_said(handler_input)
                 if said:
@@ -758,25 +760,73 @@ def _music_playing():
         return False
 
 
+def hush(handler_input, why):
+    """"STOP" TRAPPED (the user, 9 Nov 2026: "Alexa, stop" near the Moon - meant for the wake-up on Neptune - closed Peach Banana;
+    "can't you trap that and interpret better?"). Stop / cancel / pause / "be quiet" said while Peach Banana is open stop what the
+    house is sounding on the Moon - a Peach Banana timer or alarm first (script.peach_hush), else the music or radio (paused, so
+    "resume" carries on), else the Moon's screen speaker (an announcement) - and otherwise nothing. The panel stays either way;
+    only "close Peach Banana" ends it (Exit). Noted in the skill journal as stop-trapped. Returns what was stopped."""
+    did = "nothing"
+    try:
+        if (ha.hush() or {}).get("stopped"):
+            did = "alert"
+    except Exception:
+        log.exception("Peach Banana: the house couldn't stop the timer or alarm")
+    if did == "nothing":
+        try:
+            if _music_playing():
+                actions.music("pause")
+                did = "music"
+            elif ha.state("media_player.the_moon_screen") == "playing":
+                ha.call("media_player", "media_pause", {"entity_id": "media_player.the_moon_screen"})
+                did = "screen"
+        except Exception:
+            log.exception("Peach Banana: couldn't stop the music")
+    log.info("Peach Banana: %s trapped - stopped %s, the panel kept", why, did)
+    try:
+        ha.journal({"type": "stop-trapped", "intent": why, "did": did})
+    except Exception:
+        pass
+    return did
+
+
+HUSH_INTENTS = ("AMAZON.StopIntent", "AMAZON.CancelIntent", "AMAZON.PauseIntent", "QuietIntent")
+
+
 class PauseResume(AbstractRequestHandler):
     def can_handle(self, handler_input):
-        return is_intent_name("AMAZON.PauseIntent")(handler_input) or is_intent_name("AMAZON.ResumeIntent")(handler_input)
+        return is_intent_name("AMAZON.ResumeIntent")(handler_input)
 
     def handle(self, handler_input):
-        actions.music("pause" if is_intent_name("AMAZON.PauseIntent")(handler_input) else "play")
+        actions.music("play")
         return handler_input.response_builder.response
 
 
 class Stop(AbstractRequestHandler):
+    """Stop, cancel, pause, "be quiet": see hush(). The session stays (no shouldEndSession - the panel up, the microphone off),
+    no words said. Only an Echo without a screen ends it, as before."""
     def can_handle(self, handler_input):
-        return is_intent_name("AMAZON.StopIntent")(handler_input) or is_intent_name("AMAZON.CancelIntent")(handler_input)
+        return any(is_intent_name(n)(handler_input) for n in HUSH_INTENTS)
 
     def handle(self, handler_input):
-        # (the user, 31 Oct: "if they say pause or stop it should refer to that": the music stops and the panel stays; said again, it closes)
-        if _music_playing():
-            actions.music("pause")
-            return handler_input.response_builder.response
-        return handler_input.response_builder.set_should_end_session(True).response
+        hush(handler_input, handler_input.request_envelope.request.intent.name)
+        rb = handler_input.response_builder
+        if not _screen(handler_input) and not _html(handler_input):
+            rb.set_should_end_session(True)
+        return rb.response
+
+
+class Exit(AbstractRequestHandler):
+    """ "Close Peach Banana" / "quit": the only words that end it (Amazon's own "Alexa, exit" ends it on Amazon's side)."""
+    def can_handle(self, handler_input):
+        return is_intent_name("ExitIntent")(handler_input)
+
+    def handle(self, handler_input):
+        try:
+            ha.journal({"type": "exit", "intent": "ExitIntent"})
+        except Exception:
+            pass
+        return handler_input.response_builder.speak("Closing Peach Banana.").set_should_end_session(True).response
 
 
 class Ended(AbstractRequestHandler):
@@ -833,7 +883,7 @@ def PeachJournal(base):
 
 def build():
     sb = SkillBuilder()
-    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), AskThing(), Radio(), Books(), Shopping(), Load(), PlayerControl(), PlayThis(), PauseResume(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Stop(), Ended()):
+    for h in (OurSkillOnly(), Widgets(), Launch(), ShowPage(), Volume(), Command(), Time(), GoodMorning(), AskThing(), Radio(), Books(), Shopping(), Load(), PlayerControl(), PlayThis(), PauseResume(), Stop(), Exit(), AskAI(), HandOff(), Touch(), PageMessage(), Help(), Ended()):
         sb.add_request_handler(h)
     sb.add_global_response_interceptor(ListeningWindow())
     try:   # (every request and answer noted in Home Assistant, as the music skill does - event skill_journal, skill "peach banana")
