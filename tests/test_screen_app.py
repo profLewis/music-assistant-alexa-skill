@@ -196,7 +196,10 @@ def test_an_alarm_or_anything_unknown_with_the_panel_open_goes_to_alexa(client, 
     monkeypatch.setattr(mh, "hand_off", lambda hi, text=None: said.append((text, hi.attributes_manager.session_attributes.get("page")))
                         or hi.response_builder.set_should_end_session(True).response)
     handlers.lambda_handler(_ev("LaunchRequest", None, {}, True, "S.al"), None)
-    r = handlers.lambda_handler(_ev("IntentRequest", "AMAZON.FallbackIntent", {}, False, "S.al"), None)["response"]
+    # (the first time Peach Banana asks again and keeps the panel - handlers.HandOff; said again, it goes to Alexa)
+    ev = _ev("IntentRequest", "AMAZON.FallbackIntent", {}, False, "S.al")
+    ev["session"]["attributes"] = {**(ev["session"].get("attributes") or {}), "asked_again": True}
+    r = handlers.lambda_handler(ev, None)["response"]
     assert r.get("shouldEndSession") is True and said == [(None, "music")] and "echo-1" not in screen_app.OPEN
 
 

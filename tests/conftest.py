@@ -31,6 +31,16 @@ def isolated_state(monkeypatch, tmp_path):
     monkeypatch.delenv("MA_API_URL", raising=False)
     monkeypatch.delenv("MA_API_TOKEN", raising=False)
     monkeypatch.setenv("SKILL_DEPLOYMENT_PATH", str(tmp_path / "skill-deployment.json"))
+    # (fork: the skill journal posts every request to Home Assistant in the background - in tests that is an unwanted
+    #  side effect, and on the house itself it would reach the real Home Assistant)
+    from skill.lambda_function import SkillJournal
+    monkeypatch.setattr(SkillJournal, "_send", staticmethod(lambda body: None))
+    from myhouse import ha as _mh_ha
+    monkeypatch.setattr(_mh_ha, "journal", lambda body: None)
+
+    def _no_house(*a, **k):
+        raise RuntimeError("no house in tests")
+    monkeypatch.setattr(_mh_ha, "hush", _no_house)   # (never the real script.peach_hush)
     from app import app
 
     app.extensions.pop("skill_deployment", None)
