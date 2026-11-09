@@ -48,6 +48,15 @@ def boost(name, toggle=True):
     return f"Boosting {' and '.join(said)} for {hours:g} hours."
 
 
+def room_heat(name, by=None, dur=None, way=None):
+    """"Boost the kitchen by two degrees for an hour" / "turn the bedroom down": the house's script.heating_room_bump does it (the
+    room's own radiators, a timed boost; the house target untouched) and says what it did."""
+    w = (way or "up").lower()
+    w = "down" if w in ("down", "decrease", "lower", "reduce", "turn down", "cooler", "colder", "cool down", "put down", "less", "cool", "drop") else "up"
+    got = ha.room_bump(name or "", by, dur, w)
+    return got.get("say") or "Sorry, the house didn't answer."
+
+
 def end_boost(name="all"):
     if (name or "all") == "all":
         ha.call("script", "heating_end_boost", {"entity": "all", "quick": True})
