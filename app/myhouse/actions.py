@@ -127,8 +127,20 @@ def _shift():
         return None
 
 
+# (WHAT WAS SAID, NOT ITS NAME - the user, 10 Nov 2026: "Alexa continue should be understood as continue playing the music; same for
+#  unpause, unpause music, unpause radio": the slot gives the words as spoken ("continue"), not MUSIC_ACTION's value ("play"), so
+#  every synonym is mapped here too)
+_SAID = {"play": ["resume", "carry on", "continue", "unpause", "un pause", "un-pause", "continue playing", "keep playing", "keep going",
+                  "start again", "restart", "go on", "play again"],
+         "pause": ["stop", "hold", "pause it"], "next": ["skip", "next song", "skip this", "next one"],
+         "previous": ["back", "last song", "go back", "previous song"], "louder": ["turn up", "volume up", "turn it up"],
+         "quieter": ["turn down", "volume down", "turn it down"]}
+_SAID_TO = {w: k for k, ws in _SAID.items() for w in ws}
+
+
 def music(act):
-    act = (act or "").lower()
+    act = (act or "").lower().strip()
+    act = _SAID_TO.get(act, act)
     ps = _players()
     # (REWOUND RADIO - the user, 4 Nov 2026: "alexa stop or pause while the player plays should stop / pause it": the panel plays it,
     #  not Music Assistant - pause keeps the place, play carries on, stop goes back to live and stops)
