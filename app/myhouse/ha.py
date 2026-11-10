@@ -36,6 +36,14 @@ def attr(entity_id, name, default=None):
     return (s.get("attributes") or {}).get(name, default) if s else default
 
 
+def event(event_type, data=None):
+    """Fire a Home Assistant event (e.g. peach_banana_closed) - never raises: the skill's answer must not depend on it."""
+    try:
+        requests.post(f"{BASE}/events/{event_type}", headers=_headers(), json=data or {}, timeout=5)
+    except Exception:
+        pass
+
+
 def call(domain, service, data=None):
     """Call a service; the next read sees fresh states."""
     r = requests.post(f"{BASE}/services/{domain}/{service}", headers=_headers(), json=data or {}, timeout=15)

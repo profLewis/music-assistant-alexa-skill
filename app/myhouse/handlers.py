@@ -841,6 +841,15 @@ class Ended(AbstractRequestHandler):
         return is_request_type("SessionEndedRequest")(handler_input)
 
     def handle(self, handler_input):
+        # (CLOSED = TELL THE HOUSE AT ONCE - the user, 10 Nov 2026: "reduce the adverts when we quit Peach Banana" + "yes shorten the wait":
+        #  the house reopened the panel only after its reports had stopped for 50 s; now packages/catballou.yaml moon_panel_closed_reopen
+        #  reopens it ~8 s after this event - with the same guards: keep-alive on, not over an alarm, not while Alexa is in use)
+        try:
+            req = handler_input.request_envelope.request
+            dev = handler_input.request_envelope.context.system.device.device_id
+            ha.event("peach_banana_closed", {"reason": str(getattr(req, "reason", "") or ""), "device": dev or ""})
+        except Exception:
+            log.exception("Peach Banana: telling the house it closed failed")
         return handler_input.response_builder.response
 
 
