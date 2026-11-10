@@ -8,22 +8,24 @@ ROOMS = {   # name: lights, radiators (climate), room thermometer, other spoken 
     "Library": (["light.library_light_light_1", "light.library_light_left", "light.owl", "light.pin", "light.library_right"], ["climate.radiator_library_thermostat"], "sensor.room_temperature_library", []),
     "Kitchen": (["light.ballpoint", "light.light_kitchen_light", "light.light_kitchen_light_3", "light.light_kitchen_light_2", "light.snitch"], ["climate.control_radiator_kitchen"], "sensor.room_temperature_kitchen", []),
     "Back garden": (["light.back_door_light", "light.hue_outdoor_spot_1"], [], None, ["garden", "outside"]),
-    # THE HALLWAY IS TWO ROOMS (the user, 8 Nov 2026: "the upper and lower hallway are thermally uncoupled ... separate the hallway
-    # into upper and lower hallway"): each its own lights, radiator and thermometer; "the hallway" alone means both (GROUPS)
-    "Lower hallway": (["light.door", "light.hallway_lower"], ["climate.radiator_lower_hallway_thermostat"], "sensor.room_temperature_lower_hallway",
-                      ["hall", "downstairs hall", "downstairs hallway", "front hall", "lower hall", "the hall"]),
+    # THE HALLWAY - ONE ROOM AGAIN (the user, 10 Nov 2026: "best not to change rooms - recombine the hallways; zones within rooms"):
+    # one room with both radiators (the ground hall's and the first landing's) and its own whole-room thermometer; every name either
+    # half had means it (Home Assistant's www/zones.json keeps its parts as zones)
+    "Hallway": (["light.door", "light.hallway_lower", "light.a_upper_hallway_light"],
+                ["climate.radiator_lower_hallway_thermostat", "climate.radiator_upper_hallway_thermostat"], "sensor.room_temperature_hallway",
+                ["hall", "downstairs hall", "downstairs hallway", "front hall", "lower hall", "the hall", "landing", "upstairs hall",
+                 "upstairs hallway", "upper hall", "the landing", "upstairs", "hallways", "the hallway", "both hallways",
+                 "lower hallway", "upper hallway"]),
     "Downstairs bathroom": (["light.light_cellar_light", "light.light_loo_light"], ["climate.radiator_loo_thermostat"], "sensor.room_temperature_downstairs_bathroom", ["loo", "toilet", "cellar", "downstairs loo", "downstairs toilet", "cloakroom"]),
     "Sian study": (["light.sian_rope_lamp"], ["climate.radiator_beau_bedroom_thermostat"], "sensor.room_temperature_sian_study", ["sian's study", "sians study", "sian's office", "sian's room"]),
     "Bathroom": (["light.light_bathroom_light_2", "light.light_bathroom_light"], [], "sensor.room_temperature_bathroom", []),
     "Bedroom": (["light.bedroom"], ["climate.radiator_bedroom_left_thermostat", "climate.bedroom_radiator_bedroom_right_thermostat"], "sensor.room_temperature_bedroom", ["main bedroom"]),
-    "Upper hallway": (["light.a_upper_hallway_light"], ["climate.radiator_upper_hallway_thermostat"], "sensor.room_temperature_upper_hallway",
-                      ["landing", "upstairs hall", "upstairs hallway", "upper hall", "the landing", "upstairs"]),
     "Beau bedroom": (["light.frodo"], ["climate.radiator_harry_bedroom_thermostat"], "sensor.room_temperature_beau_bedroom", ["beau's bedroom", "beau's room", "beau room", "beaus room", "beaus bedroom"]),
     "Lewis study": (["light.smart_bulb"], ["climate.radiator_study_left_thermostat", "climate.radiator_study_right_thermostat"], "sensor.room_temperature_lewis_study", ["study", "lewis's study", "office", "lewis's office", "lewis office"]),
 }
 
 # A NAME FOR SEVERAL ROOMS: lights, boosts and temperatures act on each of them (the voice model lists these too)
-GROUPS = {"Hallway": (["Lower hallway", "Upper hallway"], ["hallways", "the hallway", "both hallways"])}
+GROUPS = {}   # (the Hallway was a group of its two halves 8-10 Nov 2026 - one room again now)
 
 TARGET = "input_number.target_temperature"
 BOOST_HOURS = "input_number.panel_boost_hours"
