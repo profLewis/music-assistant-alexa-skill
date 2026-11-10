@@ -157,7 +157,8 @@ def interaction_model():
         {"name": "TemperatureIntent", "slots": [{"name": "room", "type": "ROOM"}],
          "samples": [f"what's the temperature in the {R}", f"how warm is the {R}", "how warm is the house", "what's the temperature"]},
         {"name": "MusicIntent", "slots": [{"name": "act", "type": "MUSIC_ACTION"}],
-         "samples": ["{act} the music", "{act} music", "music {act}", "{act} track", "{act}"]},
+         "samples": ["{act} the music", "{act} music", "music {act}", "{act} track", "{act}", "{act} the radio", "{act} radio",
+                     "{act} playing", "{act} the song", "{act} it"]},
         # (ALEXA'S OWN JOBS while the panel is open: the open session hears everything said, so these are caught here and
         # handed back to Alexa - handlers.HandOff - instead of being lost to Help; anything else unknown: FallbackIntent)
         {"name": "AlarmIntent", "slots": [{"name": "time", "type": "AMAZON.TIME"}],
@@ -261,7 +262,7 @@ def interaction_model():
             ("repeat off", ["turn off repeat", "switch off repeat", "repeat mode off", "stop repeating", "no repeat"])]]},
         {"name": "HALF", "values": [{"name": {"value": "and a half", "synonyms": ["and half", "a half"]}}]},
         {"name": "MUSIC_ACTION", "values": [{"name": {"value": v, "synonyms": s}} for v, s in [
-            ("pause", ["stop", "hold"]), ("play", ["resume", "carry on", "continue"]), ("next", ["skip", "next song", "skip this"]),
+            ("pause", ["stop", "hold"]), ("play", ["resume", "carry on", "continue", "unpause", "un pause", "continue playing", "keep playing", "keep going", "play again"]), ("next", ["skip", "next song", "skip this"]),
             ("previous", ["back", "last song", "go back"]), ("louder", ["turn up", "volume up"]), ("quieter", ["turn down", "volume down"])]]},
     ]
     return {"interactionModel": {"languageModel": {"invocationName": "peach banana", "intents": intents, "types": types}}}
