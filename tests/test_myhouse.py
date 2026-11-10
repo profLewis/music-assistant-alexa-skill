@@ -187,31 +187,26 @@ def test_boost_model_samples():
     ways = next(t for t in model.interaction_model()["interactionModel"]["languageModel"]["types"] if t["name"] == "HEAT_WAY")["values"]
     assert {v["name"]["value"] for v in ways} == {"up", "down"}
     from myhouse.house import room
-    assert room("upstairs") == "Upper hallway" and room("downstairs loo") == "Downstairs bathroom" and room("beau room") == "Beau bedroom"
+    assert room("upstairs") == "Hallway" and room("downstairs loo") == "Downstairs bathroom" and room("beau room") == "Beau bedroom"
 
 
-def test_hallway_is_two_rooms_and_hallway_means_both(house):
-    # (8 Nov 2026: the hallway split into Lower and Upper hallway, each its own radiator and thermometer)
+def test_hallway_is_one_room_again(house):
+    # (10 Nov 2026: the Hallway one room again - zones inside it in Home Assistant; every name either half had means it)
     from myhouse.house import room, rooms
-    assert room("landing") == "Upper hallway" and room("hall") == "Lower hallway" and room("downstairs hall") == "Lower hallway"
-    assert room("upstairs hall") == "Upper hallway" and room("front hall") == "Lower hallway"
-    assert rooms("hallway") == ["Lower hallway", "Upper hallway"] and rooms("the hallway lights") == ["Lower hallway", "Upper hallway"]
-    assert rooms("lower hallway") == ["Lower hallway"]
+    for said in ("landing", "hall", "downstairs hall", "upstairs hall", "front hall", "hallway", "lower hallway", "upper hallway"):
+        assert room(said) == "Hallway", said
+    assert rooms("the hallway lights") == ["Hallway"]
     st = ha.states()
-    st["sensor.room_temperature_lower_hallway"] = {"state": "18.1", "attributes": {}}
-    st["sensor.room_temperature_upper_hallway"] = {"state": "17.8", "attributes": {}}
-    # (a tap on the screen's Boost still boosts both halves, each 1 degree above its own temperature)
+    st["sensor.room_temperature_hallway"] = {"state": "18.1", "attributes": {}}
+    # (a Boost boosts both its radiators, 1 degree above the hallway's temperature)
     actions.boost("hallway", toggle=False)
     assert ("script", "heating_boost", {"entity": "climate.radiator_lower_hallway_thermostat", "temp": 19.0, "hours": 2.0}) in house
     assert ("script", "heating_boost", {"entity": "climate.radiator_upper_hallway_thermostat", "temp": 19.0, "hours": 2.0}) in house
-    house.clear()
-    actions.boost("landing", toggle=False)
-    assert [c[2]["entity"] for c in house if c[1] == "heating_boost"] == ["climate.radiator_upper_hallway_thermostat"]
-    assert actions.temperature("hallway") == "The lower hallway is 18.1 degrees. The upper hallway is 17.8 degrees."
-    actions.room_lights("hallway", on=False)
+    assert actions.temperature("hallway") == "The hallway is 18.1 degrees."
+    actions.room_lights("landing", on=False)
     assert house[-1] == ("light", "turn_off", {"entity_id": ["light.door", "light.hallway_lower", "light.a_upper_hallway_light"]})
     vals = [v["name"]["value"] for v in next(t for t in model.interaction_model()["interactionModel"]["languageModel"]["types"] if t["name"] == "ROOM")["values"]]
-    assert "lower hallway" in vals and "upper hallway" in vals and "hallway" in vals
+    assert "hallway" in vals
 
 
 def test_set_target_and_music(house):
