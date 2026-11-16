@@ -161,17 +161,33 @@ def interaction_model():
                      "{act} playing", "{act} the song", "{act} it"]},
         # (ALEXA'S OWN JOBS while the panel is open: the open session hears everything said, so these are caught here and
         # handed back to Alexa - handlers.HandOff - instead of being lost to Help; anything else unknown: FallbackIntent)
-        {"name": "AlarmIntent", "slots": [{"name": "time", "type": "AMAZON.TIME"}],
+        # (ALARM OR TIMER - the owner, 15 Nov 2026: "set an alarm for 19 minutes" is really a timer, "a timer at 6:30" an alarm:
+        # AlarmIntent takes a time OR a length, and handlers.HandOff sets what alerts.classify decides)
+        {"name": "AlarmIntent", "slots": [{"name": "time", "type": "AMAZON.TIME"}, {"name": "dur", "type": "AMAZON.DURATION"}],
          "samples": ["set an alarm for {time}", "set alarm for {time}", "set an alarm at {time}", "set my alarm for {time}",
-                     "wake me up at {time}", "wake me at {time}", "alarm for {time}", "set an alarm", "set alarm", "for {time}", "{time}"]},
+                     "wake me up at {time}", "wake me at {time}", "alarm for {time}", "set an alarm", "set alarm", "for {time}", "{time}",
+                     "set an alarm for {dur}", "set an alarm in {dur}", "set alarm for {dur}", "set alarm in {dur}", "alarm for {dur}",
+                     "alarm in {dur}", "set an alarm for {dur} time", "set an alarm {dur} from now", "wake me up in {dur}", "wake me in {dur}",
+                     "set a {dur} alarm", "set the alarm for {time}", "set the alarm for {dur}", "set the alarm in {dur}",
+                     # ("a timer at 6:30" names a clock time: an alarm - here, as only AlarmIntent has the time slot; the model is at its limit)
+                     "set a timer for {time}", "set a timer at {time}", "set timer for {time}", "set timer at {time}", "timer at {time}",
+                     "timer for {time}", "set a timer to go off at {time}", "set a timer till {time}", "set a timer until {time}",
+                     "set the timer for {time}"]},
         {"name": "TimerIntent", "slots": [{"name": "dur", "type": "AMAZON.DURATION"}],
          "samples": ["set a timer for {dur}", "set timer for {dur}", "set a {dur} timer", "start a {dur} timer", "timer for {dur}",
-                     "start a timer for {dur}", "set a timer", "start a timer", "for {dur}", "{dur}"]},
-        {"name": "AlarmOpIntent", "slots": [{"name": "op", "type": "ALERT_OP"}, {"name": "thing", "type": "ALERT_THING"}],
-         "samples": ["{op} the {thing}", "{op} my {thing}", "{op} all {thing}", "{op} all my {thing}", "{op} all the {thing}"]},
+                     "start a timer for {dur}", "set a timer", "start a timer", "for {dur}", "{dur}",
+                     "set the timer for {dur}"]},
+        {"name": "AlarmOpIntent", "slots": [{"name": "op", "type": "ALERT_OP"}, {"name": "thing", "type": "ALERT_THING"},
+                                            {"name": "time", "type": "AMAZON.TIME"}, {"name": "dur", "type": "AMAZON.DURATION"}],
+         "samples": ["{op} the {thing}", "{op} my {thing}", "{op} all {thing}", "{op} all my {thing}", "{op} all the {thing}",
+                     "{op} the {thing} to {time}", "{op} my {thing} to {time}", "{op} the {thing} to {dur}", "{op} my {thing} to {dur}",
+                     "{op} the {thing} for {time}", "{op} my {thing} for {time}", "{op} the {thing} for {dur}", "{op} my {thing} for {dur}"]},
         {"name": "TimerLeftIntent", "slots": [],
          "samples": ["how long is left on the timer", "how long left on the timer", "how much time is left", "how long is left",
-                     "what time is the alarm", "what alarms do i have", "what timers do i have"]},
+                     "what time is the alarm", "what alarms do i have", "what timers do i have", "what alarms and timers do i have",
+                     "what timers and alarms do i have", "what alarms are set", "what timers are set", "are there any alarms",
+                     "are there any timers", "have i got any alarms", "have i got any timers", "how long is left on the alarm",
+                     "when is the alarm", "when is my alarm", "when is the timer", "what's left on the alarm"]},
         {"name": "TimeIntent", "slots": [], "samples": ["what time is it", "what's the time", "what is the time", "tell me the time"]},
         # (the user, 4 Nov 2026: "when I say 'alexa good morning' in the morning that should all happen in Peach Banana too" -
         # with the panel open, Peach Banana hears it before any Alexa routine; it took it for an alarm and asked "what time?")
@@ -248,7 +264,8 @@ def interaction_model():
                                     #  "open apesma" came out as "Open Ape Smart")
                                     {"name": {"value": "apesma", "synonyms": ["a pesma", "ape smart", "apes ma", "a pes ma", "music app", "the music app", "music assistant", "the music assistant app"]}}]},
         {"name": "ALERT_OP", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
-            ("cancel", ["delete", "remove", "turn off", "switch off"]), ("stop", ["silence"]), ("snooze", []), ("show", ["list"])]]},
+            ("cancel", ["delete", "remove", "turn off", "switch off"]), ("stop", ["silence"]), ("snooze", []), ("show", ["list"]),
+            ("change", ["move", "reset", "update", "alter"])]]},
         {"name": "ALERT_THING", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [
             ("alarm", ["alarm clock"]), ("alarms", []), ("timer", []), ("timers", []), ("reminder", []), ("reminders", [])]]},
         {"name": "PLAYER_CONTROL", "values": [{"name": {"value": v, "synonyms": syn}} for v, syn in [

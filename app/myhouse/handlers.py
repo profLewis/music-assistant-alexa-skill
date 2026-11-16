@@ -380,6 +380,45 @@ def _seconds(d):
     return sum(int(v or 0) * u for v, u in zip(m.groups(), (86400, 3600, 60, 1)))
 
 
+def _set_alert(handler_input, got, said):
+    """Set what alerts.classify decided: (words to say, None) when done here, else (None, the words to hand Alexa)."""
+    kind, val = got
+    if kind == "timer":
+        d = _duration(alerts.iso(val))
+        if alerts.timer(handler_input, alerts.iso(val)) or _house_set("timer", time.time() + val, val):
+            log.info("Peach Banana: timer set here (%s s, said as %s)", val, said)
+            return (f"OK, a timer for {d}." if said == "alarm" else f"OK, {d}."), None
+        return None, f"set a timer for {d}"
+    hm = val.strftime("%H:%M")
+    if alerts.alarm_at(handler_input, val, _clock(hm)) or _house_set("alarm", val.timestamp()):
+        log.info("Peach Banana: alarm set here (%s, said as %s)", hm, said)
+        return f"OK, an alarm at {_clock(hm)}. I'll say it, rather than ring.", None
+    return None, f"set an alarm for {_clock(hm)}"
+
+
+def _cancel_either(handler_input, kind):
+    """Cancel the alarms (or timers) asked for; if there were none, the other kind - "cancel the alarm" with only a timer
+    running cancels the timer (the owner, 15 Nov 2026: "treat alarm and timer the same"). (how many, which kind went)."""
+    for k in (kind, "timer" if kind == "alarm" else "alarm"):
+        n = (alerts.cancel_timers(handler_input) if k == "timer" else alerts.cancel_alarms(handler_input)) or 0
+        n += _house_cancel(k)
+        if n:
+            return n, k
+    return 0, kind
+
+
+def _hush_alert(handler_input, why):
+    """Only a timer or alarm the house is sounding (never the music - "stop the alarm" mustn't pause the radio). True if one was."""
+    try:
+        if (ha.hush() or {}).get("stopped"):
+            log.info("Peach Banana: %s trapped - stopped alert, the panel kept", why)
+            ha.journal({"type": "stop-trapped", "intent": why, "did": "alert"})
+            return True
+    except Exception:
+        log.exception("Peach Banana: the house couldn't stop the timer or alarm")
+    return False
+
+
 def alerts_said(handler_input):
     """What's set, in words: from this skill and Alexa's own. None if Alexa won't say (no permission)."""
     left, al = alerts.timers_left(handler_input) or [], alerts.alarms_set(handler_input) or []
@@ -439,43 +478,47 @@ class HandOff(AbstractRequestHandler):
         text = None
         rb = handler_input.response_builder
         # (done from here when Alexa's services allow it: the session stays open, as for the volume)
-        if name == "AlarmIntent":
-            t = get_slot_value(handler_input, "time")
-            if not alerts.next_time(t):
-                return rb.speak("What time?").response
-            if alerts.alarm(handler_input, t, _clock(t)) or _house_set("alarm", alerts.next_time(t).timestamp()):
-                log.info("Peach Banana: alarm set here (%s)", t)
-                return rb.speak(f"OK, {_clock(t)}. I'll say it, rather than ring.").response
-            text = f"set an alarm for {_clock(t)}"
-        elif name == "TimerIntent":
-            raw = get_slot_value(handler_input, "dur")
-            d = _duration(raw)
-            if not d:
-                return rb.speak("How long for?").response
-            if alerts.timer(handler_input, raw) or _house_set("timer", time.time() + _seconds(raw), _seconds(raw)):
-                log.info("Peach Banana: timer set here (%s)", raw)
-                return rb.speak(f"OK, {d}.").response
-            text = f"set a timer for {d}"
+        if name in ("AlarmIntent", "TimerIntent"):
+            # (ALARM OR TIMER - the owner, 15 Nov 2026: "set an alarm for 19 minutes" means a timer: alerts.classify)
+            said = "alarm" if name == "AlarmIntent" else "timer"
+            got = alerts.classify(said, get_slot_value(handler_input, "time"), get_slot_value(handler_input, "dur"))
+            if not got:
+                return rb.speak("What time?" if said == "alarm" else "How long for?").response
+            words, text = _set_alert(handler_input, got, said)
+            if words:
+                return rb.speak(words).response
         elif name == "AlarmOpIntent":
             op, thing = _resolved(handler_input, "op"), _resolved(handler_input, "thing")
-            if op in ("stop", "snooze") and hush(handler_input, f"AlarmOpIntent {op}") == "alert":
-                return rb.response   # ("stop the alarm" while the house's own is sounding: stopped, the panel kept)
+            kind = "timer" if (thing or "").startswith("timer") else "alarm"
+            if op in ("stop", "snooze"):
+                # (a sounding timer or alarm is stopped whatever it's called - "stop the alarm" over a timer too)
+                if _hush_alert(handler_input, f"AlarmOpIntent {op}"):
+                    return rb.response   # ("stop the alarm" while the house's own is sounding: stopped, the panel kept)
+                if op == "stop" and thing:
+                    op = "cancel"   # (nothing sounding: "stop the alarm" = cancel it - or the timer, when that's all there is)
             if op == "show":
                 said = alerts_said(handler_input)
                 if said:
                     return rb.speak(said).response
+            elif op == "change" and thing:
+                got = alerts.classify(kind, get_slot_value(handler_input, "time"), get_slot_value(handler_input, "dur"))
+                if not got:
+                    return rb.speak(f"Change the {kind} to when? Say, for example: change the {kind} to 7:30, or to 10 minutes.").response
+                n, _gone = _cancel_either(handler_input, kind)
+                words, text = _set_alert(handler_input, got, kind)
+                if words:
+                    return rb.speak(("Changed: " if n else "There wasn't one, so: ") + words).response
             elif op == "cancel" and thing:
-                timers = thing.startswith("timer")
-                n = (alerts.cancel_timers(handler_input) if timers else alerts.cancel_alarms(handler_input)) or 0
-                n += _house_cancel("timer" if timers else "alarm")
+                n, gone = _cancel_either(handler_input, kind)
                 if n:
-                    log.info("Peach Banana: cancelled %s %s here", n, thing)
-                    return rb.speak(f"OK, cancelled {n} {thing.rstrip('s')}{'s' if n != 1 else ''}.").response
+                    log.info("Peach Banana: cancelled %s %s here", n, gone)
+                    other = "" if gone == kind else f"There was no {kind}, so "
+                    return rb.speak(f"{other}{'OK, c' if not other else 'c'}ancelled {n} {gone}{'s' if n != 1 else ''}.").response
                 # (none here: it may be one set with Alexa, which only Alexa can cancel - so only if it's asked for twice)
                 ses = handler_input.attributes_manager.session_attributes
                 if not ses.get("no_alert"):
                     ses["no_alert"] = True
-                    return rb.speak(f"There's no {thing.rstrip('s')} set here. If Alexa set it, say that again and I'll pass it on.").response
+                    return rb.speak("There's no alarm or timer set here. If Alexa set it, say that again and I'll pass it on.").response
             text = f"{op} my {thing}" if op and thing else None
         elif name == "TimerLeftIntent":
             said = alerts_said(handler_input)

@@ -355,8 +355,149 @@ def test_cancel_our_alarm_here_and_alexas_goes_to_alexa(house, monkeypatch):
     assert "cancelled 1 alarm" in r["outputSpeech"]["ssml"] and ("DELETE", "/v1/alerts/reminders/tok") in deleted and not _handoff(house)
     _alerts(monkeypatch)
     r = _op("cancel", "alarm")
-    assert "no alarm set here" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
+    assert "no alarm or timer set here" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
     assert _op("cancel", "alarm", {"no_alert": True})["shouldEndSession"] is True and _handoff(house)[0]["text"] == "cancel my alarm"
+
+
+# ALARM OR TIMER (the owner, 15 Nov 2026: "'Alexa set an alarm for 19 minutes' when we mean a timer really. Auto correct that")
+def test_classify_alarm_or_timer():
+    from datetime import datetime
+    from myhouse import alerts
+    now = datetime(2026, 11, 15, 18, 0)
+    c = lambda said, clock=None, dur=None: alerts.classify(said, clock, dur, now)
+    assert c("alarm", dur="PT19M") == ("timer", 1140)                       # "set an alarm for 19 minutes"
+    assert c("alarm", dur="PT1H30M") == ("timer", 5400)                     # "alarm in 90 minutes"
+    assert c("alarm", dur="PT90M") == ("timer", 5400)
+    assert c("alarm", dur="PT3H") == ("timer", 10800)                       # (3 h is still "soon")
+    assert c("alarm", dur="PT8H") == ("alarm", datetime(2026, 11, 16, 2, 0))   # "wake me in 8 hours": a real alarm
+    assert c("timer", dur="PT8H") == ("timer", 28800)                       # (a timer said as a length stays one)
+    assert c("alarm", clock="07:00") == ("alarm", datetime(2026, 11, 16, 7, 0))   # "alarm for 7"
+    assert c("alarm", clock="19:00") == ("alarm", datetime(2026, 11, 15, 19, 0))  # (soon, but a clock time: an alarm)
+    assert c("timer", clock="06:30") == ("alarm", datetime(2026, 11, 16, 6, 30))  # "timer at 6:30"
+    assert c("alarm") is None and c("timer", clock="MO") is None and c("alarm", dur="P") is None
+    assert alerts.iso(1140) == "PT19M" and alerts.iso(5400) == "PT1H30M" and alerts.iso(30) == "PT30S" and alerts.iso(3600) == "PT1H"
+    assert alerts.seconds("PT1H5M") == 3900 and alerts.seconds("nonsense") is None
+
+
+def test_alarm_for_19_minutes_sets_a_timer(house, alerts_ok):
+    r = run("IntentRequest", "AlarmIntent", slots={"dur": "PT19M"})["response"]
+    assert "a timer for 19 minutes" in r["outputSpeech"]["ssml"] and not r.get("shouldEndSession") and not _handoff(house)
+    assert alerts_ok[0][0] == "/v1/alerts/timers" and alerts_ok[0][1]["duration"] == "PT19M"
+
+
+def test_alarm_in_90_minutes_via_the_house(house, alerts_refused, monkeypatch):
+    got = []
+    monkeypatch.setattr(ha, "alert", lambda action, kind="", at=0, secs=0: got.append((action, kind, at, secs)) or {"ok": True})
+    r = run("IntentRequest", "AlarmIntent", slots={"dur": "PT1H30M"})["response"]
+    assert got[0][:2] == ("set", "timer") and got[0][3] == 5400 and "a timer for 1 hour 30 minutes" in r["outputSpeech"]["ssml"]
+
+
+def test_timer_at_a_time_sets_an_alarm(house, alerts_ok):
+    r = run("IntentRequest", "AlarmIntent", slots={"time": "06:30"})["response"]   # ("timer at 6:30" is an AlarmIntent sample)
+    assert "an alarm at 6:30 am" in r["outputSpeech"]["ssml"] and alerts_ok[0][0] == "/v1/alerts/reminders"
+
+
+def test_alarm_said_as_a_length_handed_to_alexa_as_a_timer(house, alerts_refused):
+    run("IntentRequest", "AlarmIntent", slots={"dur": "PT19M"})
+    assert _handoff(house)[0]["text"] == "set a timer for 19 minutes"
+
+
+def test_model_takes_alarm_lengths_and_timer_times():
+    I = {i["name"]: i for i in model.interaction_model()["interactionModel"]["languageModel"]["intents"]}
+    assert "set an alarm for {dur}" in I["AlarmIntent"]["samples"] and "alarm in {dur}" in I["AlarmIntent"]["samples"]
+    assert "timer at {time}" in I["AlarmIntent"]["samples"] and "what alarms and timers do i have" in I["TimerLeftIntent"]["samples"]
+    ops = [v["name"]["value"] for t in model.interaction_model()["interactionModel"]["languageModel"]["types"] if t["name"] == "ALERT_OP" for v in t["values"]]
+    assert "change" in ops
+
+
+def _house_alerts(monkeypatch, items, sounding=False):
+    """The house's own list (script.peach_alert) as a fake: cancel by kind, set appends."""
+    from myhouse import alerts
+    calls = []
+    monkeypatch.setattr(alerts, "timers_left", lambda h, now=None: [])
+    monkeypatch.setattr(alerts, "alarms_set", lambda h: [])
+    monkeypatch.setattr(alerts, "_post", lambda *a: False)
+
+    def alert(action, kind="", at=0, secs=0):
+        calls.append((action, kind))
+        if action == "cancel":
+            n = sum(1 for i in items if i["k"] == kind)
+            items[:] = [i for i in items if i["k"] != kind]
+            return {"ok": True, "count": n}
+        if action == "set":
+            items.append({"k": kind, "a": at, "s": secs})
+        return {"ok": True, "items": list(items)}
+    monkeypatch.setattr(ha, "alert", alert)
+    monkeypatch.setattr(ha, "hush", lambda: {"stopped": sounding})
+    monkeypatch.setattr(ha, "journal", lambda b: None)
+    return calls
+
+
+def test_cancel_the_alarm_with_only_a_timer_cancels_the_timer(house, monkeypatch):
+    items = [{"k": "timer", "a": 2e9, "s": 600}]
+    _house_alerts(monkeypatch, items)
+    r = _op("cancel", "alarm")
+    assert "There was no alarm, so cancelled 1 timer" in r["outputSpeech"]["ssml"] and items == [] and not _handoff(house)
+
+
+def test_cancel_the_timer_with_only_an_alarm_cancels_the_alarm(house, monkeypatch):
+    items = [{"k": "alarm", "a": 2e9, "s": 0}]
+    _house_alerts(monkeypatch, items)
+    assert "cancelled 1 alarm" in _op("cancel", "timers")["outputSpeech"]["ssml"] and items == []
+
+
+def test_cancel_the_alarm_leaves_the_timer_when_there_is_an_alarm(house, monkeypatch):
+    items = [{"k": "timer", "a": 2e9, "s": 600}, {"k": "alarm", "a": 2e9, "s": 0}]
+    _house_alerts(monkeypatch, items)
+    assert "OK, cancelled 1 alarm" in _op("cancel", "alarm")["outputSpeech"]["ssml"] and [i["k"] for i in items] == ["timer"]
+
+
+def test_stop_the_alarm_with_only_a_timer_running(house, monkeypatch):
+    items = [{"k": "timer", "a": 2e9, "s": 600}]
+    _house_alerts(monkeypatch, items)
+    r = _op("stop", "alarm")   # (not sounding: it's cancelled - and the music is NOT paused)
+    assert "cancelled 1 timer" in r["outputSpeech"]["ssml"] and items == [] and not any(c[:2] == ("media_player", "media_pause") for c in house)
+
+
+def test_stop_the_alarm_while_a_timer_sounds_stops_it(house, monkeypatch):
+    items = []
+    _house_alerts(monkeypatch, items, sounding=True)
+    r = _op("stop", "alarm")
+    assert "outputSpeech" not in r and not _handoff(house)
+
+
+def _op_at(op, thing, **slots):
+    ev = build_event("IntentRequest", "AlarmOpIntent", {}, True, SHOW, "en-GB")
+    res = lambda v: {"resolutionsPerAuthority": [{"authority": "x", "status": {"code": "ER_SUCCESS_MATCH"}, "values": [{"value": {"name": v, "id": v}}]}]}
+    sl = {k: {"name": k, "value": v, "resolutions": res(v)} for k, v in (("op", op), ("thing", thing))}
+    sl.update({k: {"name": k, "value": v} for k, v in slots.items()})
+    ev["request"]["intent"]["slots"] = sl
+    return json.loads(json.dumps(_ser(handlers.build().invoke(_env(ev), None))))["response"]
+
+
+def test_change_the_alarm_to_ten_minutes_becomes_a_timer(house, monkeypatch):
+    items = [{"k": "alarm", "a": 2e9, "s": 0}]
+    calls = _house_alerts(monkeypatch, items)
+    r = _op_at("change", "alarm", dur="PT10M")
+    assert "Changed: OK, a timer for 10 minutes" in r["outputSpeech"]["ssml"] and [i["k"] for i in items] == ["timer"] and items[0]["s"] == 600
+    assert ("cancel", "alarm") in calls
+
+
+def test_change_the_timer_to_a_time_becomes_an_alarm(house, monkeypatch):
+    items = [{"k": "timer", "a": 2e9, "s": 300}]
+    _house_alerts(monkeypatch, items)
+    r = _op_at("change", "timer", time="07:15")
+    assert "an alarm at 7:15 am" in r["outputSpeech"]["ssml"] and [i["k"] for i in items] == ["alarm"]
+    assert "to when" in _op_at("change", "timer")["outputSpeech"]["ssml"]
+
+
+def test_what_alarms_lists_timers_too(house, monkeypatch):
+    _house_alerts(monkeypatch, [{"k": "timer", "a": __import__("time").time() + 300, "s": 300}, {"k": "alarm", "a": 2e9, "s": 0}])
+    monkeypatch.setattr(handlers, "_alexa_at", lambda e: None)
+    said = _op("show", "alarms")["outputSpeech"]["ssml"]
+    assert "left on a timer" in said and "an alarm at" in said
+    said = run("IntentRequest", "TimerLeftIntent")["response"]["outputSpeech"]["ssml"]
+    assert "left on a timer" in said and "an alarm at" in said
 
 
 def test_time_answered_here(house):

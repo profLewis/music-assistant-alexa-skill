@@ -108,8 +108,46 @@ def next_time(clock, now=None):
     return at if at > now else at + timedelta(days=1)
 
 
-def alarm(handler_input, clock, words, now=None):
+# ALARM OR TIMER? (the owner, 15 Nov 2026: "it is mostly things like 'Alexa set an alarm for 19 minutes' when we mean a timer
+# really. Auto correct that" - "treat alarm and timer the same"). What was SAID (alarm / timer) matters less than HOW: a length
+# ("in 19 minutes", "for 90 minutes") is a timer when it ends within SOON; a clock time ("for 7", "at 6:30") is an alarm. A long
+# length said for an alarm ("an alarm in 8 hours") stays an alarm, at that time. The same rule is in the house:
+# custom_templates/alarm_or_timer.jinja (Assist) and www/alarm-kind.js (the pages) - keep them alike.
+SOON = 3 * 3600
+
+
+def seconds(iso):
+    """AMAZON.DURATION "PT1H30M" -> 5400; None if it names no length."""
+    m = re.fullmatch(r"P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?", iso or "")
+    if not m or not any(m.groups()):
+        return None
+    return sum(int(v or 0) * u for v, u in zip(m.groups(), (86400, 3600, 60, 1))) or None
+
+
+def iso(secs):
+    """5400 -> "PT1H30M" (Alexa's timers take this form)."""
+    h, m, s = secs // 3600, secs % 3600 // 60, secs % 60
+    return "PT" + (f"{h}H" if h else "") + (f"{m}M" if m else "") + (f"{s}S" if s or not (h or m) else "")
+
+
+def classify(said, clock=None, dur=None, now=None):
+    """("timer", seconds) or ("alarm", local datetime) - or None when neither a time nor a length was heard.
+    said: "alarm" or "timer" (the word used); clock: AMAZON.TIME "07:30"; dur: AMAZON.DURATION "PT19M"."""
+    secs = seconds(dur)
+    now = now or datetime.now(tz.gettz(ZONE))
+    if secs:
+        if said == "timer" or secs <= SOON:
+            return ("timer", secs)
+        return ("alarm", now + timedelta(seconds=secs))
     at = next_time(clock, now)
+    return ("alarm", at) if at else None
+
+
+def alarm(handler_input, clock, words, now=None):
+    return alarm_at(handler_input, next_time(clock, now), words)
+
+
+def alarm_at(handler_input, at, words):
     if at is None:
         return False
     return _post(handler_input, "/v1/alerts/reminders", {
