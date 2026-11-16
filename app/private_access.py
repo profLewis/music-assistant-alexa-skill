@@ -118,7 +118,10 @@ def check_private_access():
         # The simulator has no skill ID; invoke_skill() only lets it through
         # with the app's username and password.
         return None
-    expected_skill = get_allowed_skill_id()
+    if _fork_is_house_skill():
+        # fork: Peach Banana (the house skill, app/myhouse) shares this endpoint; invoke_skill() hands its requests on
+        return None
+    expected_skill = get_allowed_skill_id() or _fork_unverified_skill_id()
     if not expected_skill:
         return Response("Complete skill deployment in the setup wizard first", 503)
     body = request.get_json(silent=True)
@@ -137,4 +140,47 @@ def check_private_access():
     if not hmac.compare_digest(str(actual_skill).encode(), expected_skill.encode()):
         logger.warning("Alexa request rejected: skill ID does not match")
         return Response("Access denied", 403)
+    return None
+
+
+def _fork_house_skill_id():
+    """fork: the Peach Banana skill id the add-on deployed (/data/myhouse.json), or None."""
+    try:
+        from myhouse import deploy as _mh
+
+        value = _mh.skill_id()
+        return value if isinstance(value, str) and value else None
+    except Exception:
+        return None
+
+
+def _fork_is_house_skill():
+    """fork: True when this request carries Peach Banana's own skill id."""
+    house_skill = _fork_house_skill_id()
+    body = request.get_json(silent=True)
+    if not house_skill or not isinstance(body, dict):
+        return False
+    context = body.get("context")
+    session = body.get("session")
+    system = context.get("System") if isinstance(context, dict) else None
+    system = system if isinstance(system, dict) else {}
+    session = session if isinstance(session, dict) else {}
+    application = system.get("application") or session.get("application")
+    actual = application.get("applicationId", "") if isinstance(application, dict) else ""
+    return hmac.compare_digest(str(actual).encode(), house_skill.encode())
+
+
+def _fork_unverified_skill_id():
+    """fork: an install set up before 1.5 whose deployment state names a skill but never recorded the verification marker
+    keeps working with THAT skill only (a warning is logged), instead of every Alexa request answering 503."""
+    if access_path().exists():
+        return None  # a saved (or corrupt) restriction file stays authoritative, as upstream
+    try:
+        state = json.loads(deployment_path().read_text())
+        value = state.get("skill_id")
+        if isinstance(value, str) and value:
+            logger.warning("Alexa skill restriction: using the deployment state's skill id (not verified by the wizard)")
+            return value
+    except (OSError, ValueError, AttributeError):
+        pass
     return None

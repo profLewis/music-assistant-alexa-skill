@@ -5,6 +5,8 @@ from **v1.4.1** - the skill image that add-on 1.3.6 ships - so it starts byte-fo
 
 ## Branch
 - `proflewis` - the fork's working branch (base: tag `v1.4.1`).
+- `proflewis-rebase-1.6.10` (16 Nov 2026) - every fork commit replayed onto upstream **v1.6.10**, plus the
+  alarm-or-timer change. See "Rebase onto v1.6.10" below.
 
 ## Golden-response tests
 `tests/test_golden_responses.py` sends every Alexa request type the skill handles (launch, PlayAudio, help,
@@ -55,3 +57,23 @@ A deliberate behaviour change goes in `tests/golden/fork-changes.json` (`{case_i
    "artist - album" as an AVG vector graphic - APL can't fetch text). A page-local timer only, no SendEvent, so the
    session stays closed. `<token>` = HMAC of the player with the API password; wrong token -> 404. `app/now_playing.py`,
    `tests/test_now_playing.py`.
+
+
+## Rebase onto v1.6.10 (16 Nov 2026)
+
+All fork commits (69 + alarm-or-timer) were cherry-picked onto upstream tag `v1.6.10`. What changed while doing it:
+
+- **One stream per speaker**: upstream 1.5 did the same thing (issue #33, `shared_store.player_from_stream` /
+  `get_player_snapshot`). The fork now uses upstream's code; only `tests/test_multi_player.py` is kept. One rule is
+  upstream's, not ours: a *mapped* Echo whose player has not pushed a stream gets no stream (the fork used to hand it
+  the latest push). `now_playing` and the display-only APL page use upstream's helpers.
+- **Skill-id restriction** (upstream 1.5, `private_access.check_private_access`): Peach Banana shares this endpoint,
+  so its own skill id (`/data/myhouse.json`) also passes; and an install whose deployment state names a skill but has
+  no recorded verification (and no `skill-access.json`) accepts THAT skill id only, with a warning, instead of answering
+  503 to every Alexa request. Tests: `tests/test_fork_private_access.py`.
+- `/test-audio.mp3` (upstream) and `/myhouse` (fork) both skip app-level auth.
+- Golden responses: upstream v1.6.10 on its own answers all 264 cases exactly like v1.4.1, so the only differences
+  are still the 32 documented in `fork-changes.json`.
+- Upstream's spoken music selection / queue commands (1.5.0) are in the **en-US** music model only; en-GB keeps its
+  8 intents. They live in the music skill's model (invocation "music assistant"), separate from Peach Banana's model
+  (345 of 350 intents + slots), so nothing clashes.

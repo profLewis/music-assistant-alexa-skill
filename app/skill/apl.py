@@ -105,7 +105,7 @@ def add_apl_display(response_builder):
     # follow the song: re-load the cover and the title (as a vector graphic) every 10 s from this server's /now/
     # addresses - a page-local timer, no SendEvent, so the session stays closed
     try:
-        from music_assistant_api.ma_routes import player_from_stream_url
+        from shared_store import player_from_stream as player_from_stream_url
         from now_playing import urls
 
         cover_url, text_url = urls(player_from_stream_url(metadata.get("audioSources", "")) or "_")

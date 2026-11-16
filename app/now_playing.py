@@ -41,7 +41,10 @@ def urls(player):
 def _payload(tok, player):
     if not hmac.compare_digest(tok, token(player)):
         abort(404)
-    return shared_store.get_ma(None if player == "_" else player) or {}
+    # upstream 1.5 keeps per-player pushes as snapshots (issue #33); "_" = the latest push
+    if player == "_":
+        return shared_store.get_ma() or {}
+    return shared_store.get_player_snapshot(player) or {}
 
 
 def _no_cache(resp):
