@@ -14,13 +14,15 @@ from .widgets import _opts
 
 def _cfg():
     o = _opts()
+    # the public Home Assistant address the Show opens: the add-on option catballou_ha_url (no built-in default)
     return {"url": (o.get("catballou_ha_url") or "").rstrip("/"),
             "inner": (o.get("catballou_ha_internal") or "http://homeassistant:8123").rstrip("/"),
             "user": o.get("catballou_ha_username") or "", "password": o.get("catballou_ha_password") or ""}
 
 
 def configured():
-    return bool(_cfg()["password"])
+    c = _cfg()
+    return bool(c["password"]) and c["url"].startswith("https://")
 
 
 def code():
